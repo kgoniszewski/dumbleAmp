@@ -30,15 +30,20 @@ private:
 
     void addKnob (Knob&, const char* paramID, const juce::String& text);
     void addToggle (juce::ToggleButton&, std::unique_ptr<ButtonAttachment>&, const char* paramID, const juce::String& text);
+    void addSelector (juce::ComboBox&, juce::Label&, std::unique_ptr<ComboBoxAttachment>&, const char* paramID, const juce::String& text);
     void chooseImpulseResponse();
     void timerCallback() override;
 
     DumbleAudioProcessor& ampProcessor;
     dumble::ui::AmpLookAndFeel lookAndFeel;
 
-    Knob volume, treble, middle, bass, presence, reverb, master, input, output;
-    juce::ToggleButton bright, deep, cabinet;
-    std::unique_ptr<ButtonAttachment> brightAttachment, deepAttachment, cabinetAttachment;
+    Knob volume, treble, middle, bass, reverbSend, reverbReturn, master, input, output;
+    juce::ToggleButton bright, deep, accent, cabinet;
+    std::unique_ptr<ButtonAttachment> brightAttachment, deepAttachment, accentAttachment, cabinetAttachment;
+
+    juce::ComboBox highFilter, lowFilter;
+    juce::Label highLabel, lowLabel;
+    std::unique_ptr<ComboBoxAttachment> highAttachment, lowAttachment;
 
     juce::ComboBox oversampling;
     juce::Label oversamplingLabel;

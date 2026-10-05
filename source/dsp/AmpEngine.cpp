@@ -2,16 +2,6 @@
 
 namespace dumble
 {
-AmpEngine::AmpEngine()
-{
-    for (auto& chain : amp)
-    {
-        chain.get<v1a>().setCircuit (circuit::kV1a, k12AX7);
-        chain.get<v1b>().setCircuit (circuit::kV1b, k12AX7);
-        chain.get<v2a>().setCircuit (circuit::kV2a, k12AX7);
-    }
-}
-
 void AmpEngine::prepare (double sampleRate, int maximumBlockSize, int initialOversamplingIndex)
 {
     maxBlockSize = juce::jmax (1, maximumBlockSize);
@@ -69,21 +59,9 @@ void AmpEngine::setSettings (const AmpSettings& s) noexcept
 
     for (auto& chain : amp)
     {
-        auto& vol = chain.get<volumeStage>();
-        vol.setVolume (s.volume);
-        vol.setBright (s.bright);
-
-        auto& ts = chain.get<toneStack>();
-        ts.setTreble (s.treble);
-        ts.setMiddle (s.middle);
-        ts.setBass (s.bass);
-
-        chain.get<reverbTank>().setAmount (s.reverb);
-
-        auto& pwr = chain.get<powerSection>();
-        pwr.setMaster (s.master);
-        pwr.setPresence (s.presence);
-        pwr.setDeep (s.deep);
+        chain.get<preamp>().setControls (s.preamp);
+        chain.get<masterStage>().setMaster (s.master);
+        chain.get<masterStage>().setAccent (s.accent);
     }
 
     post.setBypassed<cabinet> (! s.cabOn);

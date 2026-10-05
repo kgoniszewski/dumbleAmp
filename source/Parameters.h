@@ -13,12 +13,15 @@ namespace ParamIDs
     inline constexpr const char* treble       = "treble";
     inline constexpr const char* middle       = "middle";
     inline constexpr const char* bass         = "bass";
-    inline constexpr const char* presence     = "presence";
+    inline constexpr const char* reverbSend   = "reverbSend";
+    inline constexpr const char* reverbReturn = "reverbReturn";
     inline constexpr const char* master       = "master";
-    inline constexpr const char* reverb       = "reverb";
     inline constexpr const char* output       = "output";
     inline constexpr const char* bright       = "bright";
     inline constexpr const char* deep         = "deep";
+    inline constexpr const char* accent       = "accent";
+    inline constexpr const char* highFilter   = "highFilter";
+    inline constexpr const char* lowFilter    = "lowFilter";
     inline constexpr const char* cabOn        = "cabOn";
     inline constexpr const char* oversampling = "oversampling";
 }
@@ -40,12 +43,15 @@ struct ParamRefs
     std::atomic<float>* treble;
     std::atomic<float>* middle;
     std::atomic<float>* bass;
-    std::atomic<float>* presence;
+    std::atomic<float>* reverbSend;
+    std::atomic<float>* reverbReturn;
     std::atomic<float>* master;
-    std::atomic<float>* reverb;
     std::atomic<float>* output;
     std::atomic<float>* bright;
     std::atomic<float>* deep;
+    std::atomic<float>* accent;
+    std::atomic<float>* highFilter;
+    std::atomic<float>* lowFilter;
     std::atomic<float>* cabOn;
     std::atomic<float>* oversampling;
 };

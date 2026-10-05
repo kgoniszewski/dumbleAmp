@@ -3,10 +3,9 @@ juce_add_console_app(DumbleTests PRODUCT_NAME "DumbleTests")
 target_sources(DumbleTests PRIVATE
     Main.cpp
     AllocationGuard.cpp
-    ToneStackTests.cpp
     TriodeTests.cpp
     EngineTests.cpp
-    SpiceTests.cpp
+    Sss002Tests.cpp
     ${PROJECT_SOURCE_DIR}/source/dsp/AmpEngine.cpp)
 
 target_include_directories(DumbleTests PRIVATE ${PROJECT_SOURCE_DIR}/source)

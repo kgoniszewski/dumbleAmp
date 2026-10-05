@@ -11,14 +11,18 @@ DumbleAudioProcessorEditor::DumbleAudioProcessorEditor (DumbleAudioProcessor& p)
     addKnob (treble,   ParamIDs::treble,    "TREBLE");
     addKnob (middle,   ParamIDs::middle,    "MIDDLE");
     addKnob (bass,     ParamIDs::bass,      "BASS");
-    addKnob (presence, ParamIDs::presence,  "PRESENCE");
-    addKnob (reverb,   ParamIDs::reverb,    "REVERB");
+    addKnob (reverbSend,   ParamIDs::reverbSend,   "REV SEND");
+    addKnob (reverbReturn, ParamIDs::reverbReturn, "REV RETURN");
     addKnob (master,   ParamIDs::master,    "MASTER");
     addKnob (input,    ParamIDs::inputGain, "INPUT");
     addKnob (output,   ParamIDs::output,    "OUTPUT");
 
     addToggle (bright,  brightAttachment,  ParamIDs::bright, "BRIGHT");
     addToggle (deep,    deepAttachment,    ParamIDs::deep,   "DEEP");
+    addToggle (accent,  accentAttachment,  ParamIDs::accent, "ACCENT");
+
+    addSelector (highFilter, highLabel, highAttachment, ParamIDs::highFilter, "HIGH");
+    addSelector (lowFilter,  lowLabel,  lowAttachment,  ParamIDs::lowFilter,  "LOW");
     addToggle (cabinet, cabinetAttachment, ParamIDs::cabOn,  "CABINET");
 
     // Items must exist before the attachment is created (choice index -> item id + 1).
@@ -82,6 +86,19 @@ void DumbleAudioProcessorEditor::addToggle (juce::ToggleButton& b, std::unique_p
     attachment = std::make_unique<ButtonAttachment> (ampProcessor.getValueTreeState(), paramID, b);
 }
 
+void DumbleAudioProcessorEditor::addSelector (juce::ComboBox& box, juce::Label& label, std::unique_ptr<ComboBoxAttachment>& attachment,
+                                              const char* paramID, const juce::String& text)
+{
+    // Items must exist before the attachment is created (choice index -> item id + 1).
+    box.addItemList ({ "1", "2", "3", "4", "5", "6", "7" }, 1);
+    addAndMakeVisible (box);
+    attachment = std::make_unique<ComboBoxAttachment> (ampProcessor.getValueTreeState(), paramID, box);
+
+    label.setText (text, juce::dontSendNotification);
+    label.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (label);
+}
+
 void DumbleAudioProcessorEditor::chooseImpulseResponse()
 {
     fileChooser = std::make_unique<juce::FileChooser> ("Select a cabinet impulse response",
@@ -125,16 +142,17 @@ void DumbleAudioProcessorEditor::resized()
     auto switches = row.removeFromRight (juce::roundToInt (110 * scale));
     const auto knobWidth = row.getWidth() / 7;
 
-    for (auto* k : { &volume, &treble, &middle, &bass, &presence, &reverb, &master })
+    for (auto* k : { &volume, &treble, &middle, &bass, &reverbSend, &reverbReturn, &master })
     {
         auto cell = row.removeFromLeft (knobWidth).reduced (juce::roundToInt (4 * scale));
         k->label.setBounds (cell.removeFromTop (juce::roundToInt (22 * scale)));
         k->slider.setBounds (cell);
     }
 
-    switches.removeFromTop (juce::roundToInt (40 * scale));
-    bright.setBounds (switches.removeFromTop (juce::roundToInt (40 * scale)));
-    deep.setBounds (switches.removeFromTop (juce::roundToInt (40 * scale)));
+    switches.removeFromTop (juce::roundToInt (30 * scale));
+    bright.setBounds (switches.removeFromTop (juce::roundToInt (36 * scale)));
+    deep.setBounds (switches.removeFromTop (juce::roundToInt (36 * scale)));
+    accent.setBounds (switches.removeFromTop (juce::roundToInt (36 * scale)));
 
     // studio row
     area.removeFromTop (juce::roundToInt (12 * scale));
@@ -152,7 +170,7 @@ void DumbleAudioProcessorEditor::resized()
     outputMeter.setBounds (meters.reduced (1, 0));
 
     studio.removeFromLeft (juce::roundToInt (16 * scale));
-    auto cab = studio.removeFromLeft (juce::roundToInt (300 * scale));
+    auto cab = studio.removeFromLeft (juce::roundToInt (250 * scale));
     const auto lineH = juce::roundToInt (28 * scale);
     cabinet.setBounds (cab.removeFromTop (lineH));
     auto buttons = cab.removeFromTop (lineH);
@@ -160,7 +178,16 @@ void DumbleAudioProcessorEditor::resized()
     defaultIrButton.setBounds (buttons.reduced (2));
     irName.setBounds (cab.removeFromTop (lineH));
 
-    auto osArea = studio.removeFromRight (juce::roundToInt (160 * scale));
+    auto osArea = studio.removeFromRight (juce::roundToInt (150 * scale));
+
+    const std::pair<juce::ComboBox*, juce::Label*> selectors[] { { &highFilter, &highLabel }, { &lowFilter, &lowLabel } };
+    for (const auto& [box, label] : selectors)
+    {
+        auto cell = studio.removeFromLeft (juce::roundToInt (80 * scale));
+        label->setBounds (cell.removeFromTop (lineH));
+        box->setBounds (cell.removeFromTop (lineH).reduced (6, 0));
+    }
+
     oversamplingLabel.setBounds (osArea.removeFromTop (lineH));
     oversampling.setBounds (osArea.removeFromTop (lineH).reduced (8, 0));
     cpuLabel.setBounds (osArea.removeFromTop (lineH));

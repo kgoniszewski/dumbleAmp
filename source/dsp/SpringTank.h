@@ -5,34 +5,37 @@
 
 #include <juce_dsp/juce_dsp.h>
 
-#include "BrightVolume.h"
 #include "OnePole.h"
 
 namespace dumble
 {
 /**
-    Tube-driven spring reverb, mixed back in at the dry/reverb mixing node in front of V2a
-    (ProcessorChain element; dry path is untouched, Reverb = 0 is bit-transparent).
+    Reverb driver + spring tank of the SSS #002 (U25/U26 2x5751 in parallel into the reverb
+    transformer, 8 Ohm tank input; tank output into the U28 recovery stage).
 
-        dry ───────────────────────────────────────────────┬──> out
-         └─ driver (12AT7 + transformer: soft saturation)   │
-              └─ 2-spring tank ─ recovery ─ × Reverb knob ──┘
+        driver grid volts -> 5751 pair + transformer (soft saturation) -> secondary volts
+                          -> 2-spring tank -> tank output volts
 
-    Spring model after Välimäki, Parker & Abel ("Parametric spring reverberation effect",
-    JAES 2010), simplified: per spring, a cascade of stretched first-order allpasses
-    (z^-K) produces the characteristic dispersive "chirp", inside a damped feedback delay loop.
+    Spring model after Valimaki, Parker & Abel ("Parametric spring reverberation effect",
+    JAES 2010), simplified: per spring, a cascade of stretched first-order allpasses (z^-K) gives the
+    dispersive "chirp", inside a damped feedback delay loop.
 
-    The tank's bandwidth is ~4.5 kHz, so it runs at a decimated internal rate (~40-80 kHz)
-    even when the amp runs at 8x: 4th-order anti-alias low-pass, keep every D-th sample,
-    sample-and-hold back up, same 4th-order low-pass. All buffers sized in prepare().
+    The tank's bandwidth is ~4.5 kHz, so it runs at a decimated internal rate (~40-80 kHz) at every
+    oversampling factor: 4th-order anti-alias low-pass, keep every D-th sample, sample-and-hold back
+    up, same 4th-order low-pass. All buffers are sized in prepare().
 */
-class SpringReverb
+class SpringTank
 {
 public:
     static constexpr int kAllpassStages = 40;
     static constexpr int kMaxStretch = 8;
 
-    void setAmount (float knob0to10) noexcept { amount.setTargetValue (audioTaper (knob0to10)); }
+    // Driver: the 5751 pair cuts off ~2.5 V below its bias; its plate swing through the 2 H : 0.5 mH
+    // transformer (ratio 1:63) gives ~1.6 V at the tank input. The reconstruction models the tank as
+    // out = in/3 delayed; real tanks are ~-25 dB, so the output is scaled to 0.1 of the drive.
+    static constexpr float kDriverSaturation = 2.5f;  // grid volts
+    static constexpr float kSecondaryPeak    = 1.6f;  // volts at the tank input
+    static constexpr float kTankOutputGain   = 0.1f;
 
     void prepare (const juce::dsp::ProcessSpec& spec)
     {
@@ -52,7 +55,6 @@ public:
             springs[s].prepare (internalRate, loopSeconds[s], stretch);
 
         outputHighpass.setCutoff (120.0f, internalRate);
-        amount.reset (sampleRate, 0.05);
         reset();
     }
 
@@ -68,47 +70,42 @@ public:
         outputHighpass.reset();
         phase = 0;
         held = 0.0f;
-        amount.setCurrentAndTargetValue (amount.getTargetValue());
+        secondary = 0.0f;
     }
 
-    template <typename Context>
-    void process (const Context& context) noexcept
+    /** Driver grid volts in, tank output volts out (at the recovery grid). */
+    float processSample (float driverGrid) noexcept
     {
-        processMono (context, [this] (float x) noexcept { return processSample (x); });
-    }
+        if (std::abs (driverGrid) < 1.0e-9f && tailIsSilent())
+        {
+            secondary = 0.0f;
+            return 0.0f;
+        }
 
-    float processSample (float dry) noexcept
-    {
-        const auto mix = amount.getNextValue();
+        secondary = kSecondaryPeak * std::tanh (driverGrid / kDriverSaturation);
 
-        if (mix <= 0.0f && ! amount.isSmoothing() && tailIsSilent())
-            return dry;
-
-        // driver: 12AT7 into the reverb transformer, saturating on hot signals
-        auto band = dry;
+        auto band = secondary;
         for (auto& section : antiAlias)
             band = section.processSample (band);
 
         if (++phase >= decimation)
         {
             phase = 0;
-            const auto driven = std::tanh (band * kDriveGain);
-            auto wet = 0.5f * (springs[0].process (driven) + springs[1].process (driven));
-            wet = outputHighpass.processHighpass (wet);
-            held = wet;
+            auto wet = 0.5f * (springs[0].process (band) + springs[1].process (band));
+            held = outputHighpass.processHighpass (wet);
         }
 
         auto wet = held;
         for (auto& section : reconstruction)
             wet = section.processSample (wet);
 
-        return dry + mix * kRecoveryGain * wet;
+        return kTankOutputGain * wet;
     }
 
-private:
-    static constexpr float kDriveGain = 0.08f;   // volts at the stack output -> driver grid
-    static constexpr float kRecoveryGain = 14.0f; // recovery stage, back to volts at the mixer
+    /** Transformer secondary (tank input) voltage of the last sample: fed back to U20 via R41. */
+    float getSecondaryVoltage() const noexcept { return secondary; }
 
+private:
     bool tailIsSilent() const noexcept
     {
         return std::abs (held) < 1.0e-7f && springs[0].isQuiet() && springs[1].isQuiet();
@@ -196,9 +193,8 @@ private:
 
     std::array<Spring, 2> springs;
     OnePole outputHighpass;
-    juce::SmoothedValue<float> amount { 0.0f };
     double sampleRate = 48000.0;
     int decimation = 1, phase = 0;
-    float held = 0.0f;
+    float held = 0.0f, secondary = 0.0f;
 };
 } // namespace dumble

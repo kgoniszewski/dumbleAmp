@@ -15,10 +15,10 @@ constexpr int kBlock = 64;
 AmpSettings crankedSettings (int osIndex)
 {
     AmpSettings s;
-    s.volume = 8.0f;
-    s.treble = 7.0f;
-    s.middle = 5.0f;
-    s.bass = 5.0f;
+    s.preamp.volume = 8.0f;
+    s.preamp.treble = 7.0f;
+    s.preamp.middle = 5.0f;
+    s.preamp.bass = 5.0f;
     s.master = 9.0f;
     s.cabOn = false;
     s.outputDb = 0.0f;
@@ -43,7 +43,7 @@ double aliasRatioDb (int osIndex, juce::StringArray* peaks = nullptr, double pea
     engine.prepare (kFs, kBlock, osIndex);
     // edge-of-breakup: the SSS's natural habitat
     auto settings = crankedSettings (osIndex);
-    settings.volume = 5.0f;
+    settings.preamp.volume = 5.0f;
     settings.master = 7.0f;
     engine.setSettings (settings);
     engine.reset();
@@ -117,8 +117,10 @@ public:
                 logMessage ("  strongest 8x non-harmonic: " + peaks[i]);
             logMessage ("alias/harmonic energy: 2x " + juce::String (a2, 1) + " dB, 4x " + juce::String (a4, 1)
                         + " dB, 8x " + juce::String (a8, 1) + " dB");
-            expect (a4 < a2 - 3.0, "4x should alias clearly less than 2x");
+            // the power section always runs at >= 176 kHz internally, so 2x and 4x are close
+            expect (a4 < a2 + 1.0, "4x must not alias more than 2x");
             expect (a8 < a4 - 3.0, "8x should alias clearly less than 4x");
+            expectLessThan (a2, -25.0);
             expectLessThan (a8, -45.0);
         }
 
@@ -140,7 +142,8 @@ public:
             engine.prepare (kFs, kBlock, 1);
             auto settings = crankedSettings (1);
             settings.cabOn = true;
-            settings.reverb = 5.0f;
+            settings.preamp.reverbSend = 5.0f;
+            settings.preamp.reverbReturn = 5.0f;
             engine.setSettings (settings);
 
             // let the convolution's background thread swap in its IR before measuring
@@ -167,8 +170,8 @@ public:
 
                     // switch factor every 0.25 s and wiggle knobs, all from the "audio thread"
                     settings.oversamplingIndex = (int) ((pos / (size_t) (kFs / 4)) % 3);
-                    settings.treble = 5.0f + 3.0f * (float) std::sin ((double) blockIndex * 0.01);
-                    settings.volume = 6.0f + 2.0f * (float) std::sin ((double) blockIndex * 0.007);
+                    settings.preamp.treble = 5.0f + 3.0f * (float) std::sin ((double) blockIndex * 0.01);
+                    settings.preamp.volume = 6.0f + 2.0f * (float) std::sin ((double) blockIndex * 0.007);
                     engine.setSettings (settings);
                     engine.process (y.data() + pos, kBlock);
 
@@ -197,8 +200,9 @@ public:
                 AmpEngine engine;
                 engine.prepare (kFs, kBlock, os);
                 auto s = crankedSettings (os);
-                s.volume = 4.0f;
-                s.reverb = reverbKnob;
+                s.preamp.volume = 4.0f;
+                s.preamp.reverbSend = reverbKnob;
+                s.preamp.reverbReturn = reverbKnob;
                 engine.setSettings (s);
                 engine.reset();
 
@@ -242,7 +246,8 @@ public:
             engine.prepare (kFs, kBlock, os);
             auto s = crankedSettings (os);
             s.cabOn = true;
-            s.reverb = 5.0f;
+            s.preamp.reverbSend = 5.0f;
+            s.preamp.reverbReturn = 5.0f;
             engine.setSettings (s);
 
             std::vector<float> x ((size_t) kFs * 5);

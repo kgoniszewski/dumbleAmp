@@ -6,14 +6,12 @@
 
 #include <juce_dsp/juce_dsp.h>
 
-#include "BrightVolume.h"
 #include "CabinetIR.h"
 #include "DCBlocker.h"
+#include "MasterStage.h"
 #include "PowerSection.h"
+#include "Preamp002.h"
 #include "RealtimeSafety.h"
-#include "SpringReverb.h"
-#include "ToneStackTMB.h"
-#include "TriodeStage.h"
 
 namespace dumble
 {
@@ -21,10 +19,11 @@ namespace dumble
 struct AmpSettings
 {
     float inputGainDb = 0.0f;
-    float volume = 5.0f, treble = 6.0f, middle = 5.0f, bass = 4.0f;
-    float presence = 4.0f, master = 7.0f, reverb = 0.0f;
+    PreampControls preamp {};
+    float master = 5.0f;
+    bool accent = false;
     float outputDb = -6.0f;
-    bool bright = true, deep = false, cabOn = true;
+    bool cabOn = true;
     int oversamplingIndex = 1; // 0 = 2x, 1 = 4x, 2 = 8x
 };
 
@@ -32,7 +31,8 @@ struct AmpSettings
     The complete mono amplifier:
 
       PreChain  (base rate)  : input gain -> 20 Hz HPF
-      AmpChain  (oversampled): V1a -> Volume/Bright -> V1b -> TMB -> spring reverb mix -> V2a -> PI/Power/NFB
+      AmpChain  (oversampled): Preamp002 (V1 -> tone stack/volume -> V4 -> filters -> U37/U38, reverb loop, mixer)
+                               -> MasterStage (master/accent) -> PowerSection (LTP, CF driver, 4x6L6GC, OT, NFB)
       PostChain (base rate)  : DC blocker -> cabinet IR -> output gain
 
     Three Oversampling objects (2x/4x/8x) and three AmpChains are fully prepared up front, so
@@ -45,14 +45,11 @@ public:
     static constexpr int kNumOversamplingChoices = 3;
 
     using PreChain  = juce::dsp::ProcessorChain<juce::dsp::Gain<float>, juce::dsp::IIR::Filter<float>>;
-    using AmpChain  = juce::dsp::ProcessorChain<TriodeStage, BrightVolume, TriodeStage,
-                                                ToneStackTMB, SpringReverb, TriodeStage, PowerSection>;
+    using AmpChain  = juce::dsp::ProcessorChain<Preamp002, MasterStage, PowerSection>;
     using PostChain = juce::dsp::ProcessorChain<DCBlocker, CabinetIR, juce::dsp::Gain<float>>;
 
-    enum AmpIndex  { v1a, volumeStage, v1b, toneStack, reverbTank, v2a, powerSection };
+    enum AmpIndex  { preamp, masterStage, powerSection };
     enum PostIndex { dcBlocker, cabinet, outputGain };
-
-    AmpEngine();
 
     /** Allocates everything. Call from prepareToPlay() only. */
     void prepare (double sampleRate, int maximumBlockSize, int initialOversamplingIndex);
