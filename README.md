@@ -4,10 +4,13 @@ Circuit-modelled emulation of the Dumble **Steel String Singer** guitar amplifie
 built with **JUCE 9.0.3** as a **Standalone app** and an **Audio Unit (AUv2)** (no VST3).
 Designed for the **IK Multimedia AXE I/O One** (mono instrument input → mono output).
 
-* 12AX7 preamp stages solved as nonlinear circuits (Koren tube model, Newton-Raphson)
-* exact 3rd-order TMB tone stack, Volume/Bright, Presence/Deep NFB loop, tube-driven spring reverb
-* triode stage cross-checked against ngspice (`spice/`, `tests/SpiceTests.cpp`)
-* 12AT7 long-tail-pair phase inverter, 4×6550 push-pull power amp with sag and bias shift
+* full topology of the **SSS #002** community reconstruction (LTspice, colganr) — see docs
+* 5751 / 7025 stages solved as nonlinear circuits (Koren model, Newton-Raphson) coupled to exact
+  R/L/C networks: tone stack, Volume/Bright/Deep, 300 mH choke + 7-position High/Low filters,
+  local feedback loops, cathode-follower mixer, Master/Accent, tube-driven spring reverb
+* 7025 long-tail-pair phase inverter, DC-coupled cathode-follower driver, 4×6L6GC push-pull,
+  2 kΩ OT, global NFB into the PI tail
+* whole preamp cross-checked against ngspice (`spice/gen_sss002_refs.py`, `tests/Sss002Tests.cpp`)
 * `juce::dsp::ProcessorChain`, `juce::dsp::Oversampling` (2x / 4x / 8x), `AudioProcessorValueTreeState`
 * real-time safe `processBlock()` (verified: zero heap allocations on the audio path)
 

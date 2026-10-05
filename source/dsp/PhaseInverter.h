@@ -10,7 +10,7 @@
 namespace dumble
 {
 /**
-    Long-tail-pair (Schmitt) phase inverter with a 12AT7:
+    Long-tail-pair (Schmitt) phase inverter, 7025 (SSS #002: U6/U7):
 
         B+ --RpA-- plate A        B+ --RpB-- plate B
                  |                         |
@@ -102,13 +102,13 @@ private:
             for (int i = 0; i < 8; ++i)
             {
                 float d = 0.0f;
-                const auto ig = gridCurrent (vgA - s.vk, d);
+                const auto ig = gridCurrent (vgA - s.vk, k7025.rgi, d);
                 vgA -= (vgA + kSource * ig - (vt + vin)) / (1.0f + kSource * d);
             }
         }
 
-        const auto ia = korenTriode (k12AT7, vgA - s.vk, s.va - s.vk).ip;
-        const auto ib = korenTriode (k12AT7, vt - s.vk,  s.vb - s.vk).ip;
+        const auto ia = korenTriode (k7025, vgA - s.vk, s.va - s.vk).ip;
+        const auto ib = korenTriode (k7025, vt - s.vk,  s.vb - s.vk).ip;
 
         f[0] = (kPiBplus - s.va) / kPiRPlateA - ia;
         f[1] = (kPiBplus - s.vb) / kPiRPlateB - ib;

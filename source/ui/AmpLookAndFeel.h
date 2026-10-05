@@ -72,7 +72,7 @@ public:
 
         g.setColour (panelText.withAlpha (0.7f));
         g.setFont (juce::FontOptions (13.0f * scale));
-        g.drawText ("circuit-modelled  |  12AX7 / 12AT7 / 4x6550",
+        g.drawText ("circuit-modelled SSS 002  |  5751 / 7025 / 4x6L6GC",
                     area.withHeight (juce::roundToInt (70 * scale)).reduced (juce::roundToInt (28 * scale), 0),
                     juce::Justification::centredRight);
     }
