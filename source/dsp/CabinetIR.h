@@ -12,10 +12,12 @@ namespace dumble
     blocking the audio thread. The load* methods here must be called from the message thread,
     never from processBlock().
 
-    Level: with Normalise::yes, juce::dsp::Convolution normalises the IR's energy *after* resampling
-    it to the processing rate, so the cabinet's gain would grow by 3 dB per doubling of the sample
-    rate (more taps of the same energy-normalised amplitude). rateGain undoes that, so a given IR
-    has the same level at 44.1 and 192 kHz (reference: kDefaultIrRate).
+    Level: with Normalise::yes, juce::dsp::Convolution scales the IR to an energy of 0.125^2 (-18 dB)
+    *after* resampling it to the processing rate. Two consequences, both undone by outputGain:
+      - the cabinet would sit 18 dB below the amp (x8 restores unit IR energy), and
+      - its gain would grow by 3 dB per doubling of the sample rate (more taps of the same
+        energy-normalised amplitude): sqrt(kDefaultIrRate / fs).
+    Result: unit IR energy at 48 kHz, the same level at every rate, for the built-in and user IRs.
 */
 class CabinetIR
 {
@@ -23,7 +25,7 @@ public:
     void prepare (const juce::dsp::ProcessSpec& spec)
     {
         convolution.prepare (spec);
-        rateGain = (float) std::sqrt (kDefaultIrRate / spec.sampleRate);
+        outputGain = kNormalisationMakeUp * (float) std::sqrt (kDefaultIrRate / spec.sampleRate);
     }
 
     void reset() noexcept { convolution.reset(); }
@@ -34,7 +36,7 @@ public:
         convolution.process (context);
 
         if (! context.isBypassed)
-            context.getOutputBlock().multiplyBy (rateGain);
+            context.getOutputBlock().multiplyBy (outputGain);
     }
 
     /** Loads a built-in, procedurally generated 2x12 open-back style response. Message thread only. */
@@ -98,6 +100,7 @@ public:
 private:
     static constexpr double kDefaultIrRate = 48000.0;
     juce::dsp::Convolution convolution;
-    float rateGain = 1.0f;
+    static constexpr float kNormalisationMakeUp = 8.0f; // 1 / 0.125, see the class comment
+    float outputGain = 1.0f;
 };
 } // namespace dumble

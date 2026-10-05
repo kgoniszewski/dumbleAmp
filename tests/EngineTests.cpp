@@ -156,6 +156,27 @@ public:
             };
 
             const auto ref = cabGainDb (48000.0);
+
+            // the cabinet must not cost level (JUCE's IR normalisation alone is -18 dB): at 1 kHz,
+            // close to the 2.4 kHz presence peak, it should be within a few dB of the bare amp
+            {
+                AmpEngine bare;
+                bare.prepare (48000.0, kBlock, 1);
+                auto s = crankedSettings (1);
+                s.preamp.volume = 2.0f;
+                s.cabOn = false;
+                bare.setSettings (s);
+                std::vector<float> x ((size_t) 96000);
+                for (size_t i = 0; i < x.size(); ++i)
+                    x[i] = 0.01f * (float) std::sin (2.0 * juce::MathConstants<double>::pi * 1000.0 * (double) i / 48000.0);
+                run (bare, x);
+                double acc = 0.0;
+                for (auto i = x.size() / 2; i < x.size(); ++i)
+                    acc += (double) x[i] * x[i];
+                const auto bareDb = 10.0 * std::log10 (acc / (double) (x.size() / 2)) - 20.0 * std::log10 (0.01 / std::sqrt (2.0));
+                logMessage ("1 kHz gain: cab on " + juce::String (ref, 2) + " dB, cab off " + juce::String (bareDb, 2) + " dB");
+                expectWithinAbsoluteError (ref - bareDb, 0.0, 6.0, "cabinet changes the level too much");
+            }
             for (double rate : { 44100.0, 96000.0, 192000.0 })
             {
                 const auto g = cabGainDb (rate);
