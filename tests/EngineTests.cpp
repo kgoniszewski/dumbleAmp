@@ -233,7 +233,8 @@ public:
             expectEquals ((int) test::AllocationGuard::getDeallocationCount(), 0, "heap deallocation on the audio path");
         }
 
-        beginTest ("Spring reverb: transparent at 0, audible decaying tail, stable");
+        beginTest ("Spring reverb: transparent at 0, audible decaying tail, stable, same level at every factor");
+        double tailAt2x = 0.0;
         for (int os = 0; os < AmpEngine::kNumOversamplingChoices; ++os)
         {
             const auto render = [os] (float reverbKnob)
@@ -272,6 +273,13 @@ public:
 
             expect (wetTail > 20.0 * dryTail + 1.0e-5, "reverb tail missing");
             expect (lateTail < wetTail * 0.05, "reverb tail does not decay");
+
+            // the return chain runs decimated at 4x/8x (R = 2/4) and at full rate at 2x (R = 1)
+            if (os == 0)
+                tailAt2x = wetTail;
+            else
+                expectWithinAbsoluteError (20.0 * std::log10 (wetTail / tailAt2x), 0.0, 0.5,
+                                           "reverb level depends on the oversampling factor");
 
             bool finite = true;
             for (auto v : wet)
