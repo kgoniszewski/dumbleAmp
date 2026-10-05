@@ -84,8 +84,14 @@ public:
         sampleRate = spec.sampleRate;
         const juce::dsp::ProcessSpec mono { spec.sampleRate, spec.maximumBlockSize, 1 };
 
-        for (auto* t : { &v1, &v4, &u37, &u39, &u20, &u28 })
+        // the reverb return (tank output, ~4.5 kHz bandwidth) runs at >= 88.2 kHz only
+        returnDecimation = juce::jmax (1, (int) std::lround (sampleRate / 96000.0));
+        const juce::dsp::ProcessSpec returnSpec { sampleRate / returnDecimation, spec.maximumBlockSize, 1 };
+
+        for (auto* t : { &v1, &v4, &u37, &u20 })
             t->prepare (mono);
+        for (auto* t : { &u28, &u39 })
+            t->prepare (returnSpec);
 
         u38.prepare (u37.getPlateVoltageDC());
         u40.prepare (u39.getPlateVoltageDC());
@@ -95,7 +101,8 @@ public:
             s->reset (sampleRate, 0.03);
 
         lnfb2Filter.setCutoff (1.0f / (juce::MathConstants<float>::twoPi * circuit::kLnfb2R * circuit::kLnfb2C), sampleRate);
-        revFbFilter.setCutoff (1.0f / (juce::MathConstants<float>::twoPi * circuit::kRevFbR * circuit::kRevFbC), sampleRate);
+        revFbFilter.setCutoff (1.0f / (juce::MathConstants<float>::twoPi * circuit::kRevFbR * circuit::kRevFbC),
+                               returnSpec.sampleRate);
 
         front.prepare (sampleRate);
         mid.prepare (sampleRate);
@@ -122,6 +129,8 @@ public:
 
         lnfbCurrent = lnfb2Current = revFbCurrent = 0.0f;
         countdown = 0;
+        returnPhase = 0;
+        returnAccum = wetPrev = wetNext = 0.0f;
     }
 
     template <typename Context>
@@ -176,14 +185,26 @@ public:
         {
             u20.setCathodeInjection (tank.getSecondaryVoltage() / circuit::kTankFbR);
             const auto driverGrid = u20.processSample (rev) * sendRatio;
-            const auto tankOut = tank.processSample (driverGrid);
+            returnAccum += tank.processSample (driverGrid);
 
-            u28.setCathodeInjection (revFbCurrent);
-            const auto returned = u28.processSample (tankOut) * retRatio;
-            const auto vp39 = u39.processSampleLoaded (returned, 0.0, 0.0);
-            u40.processSample (vp39);
-            wet = u40.getCathodeDeviation();
-            revFbCurrent = revFbFilter.processHighpass (wet) / circuit::kRevFbR;
+            // U28 -> Return -> U39 -> U40 once every returnDecimation samples on the averaged tank
+            // output; wet is interpolated between the last two results (delay <= 10 us)
+            if (++returnPhase >= returnDecimation)
+            {
+                const auto tankOut = returnAccum / (float) returnDecimation;
+                returnPhase = 0;
+                returnAccum = 0.0f;
+
+                u28.setCathodeInjection (revFbCurrent);
+                const auto returned = u28.processSample (tankOut) * retRatio;
+                const auto vp39 = u39.processSampleLoaded (returned, 0.0, 0.0);
+                u40.processSample (vp39);
+                wetPrev = wetNext;
+                wetNext = u40.getCathodeDeviation();
+                revFbCurrent = revFbFilter.processHighpass (wetNext) / circuit::kRevFbR;
+            }
+
+            wet = wetPrev + (wetNext - wetPrev) * (float) (returnPhase + 1) / (float) returnDecimation;
         }
 
         // mix node: two 220k from (near-ideal) CF outputs -> open-circuit voltage is the average
@@ -326,6 +347,8 @@ private:
     float lnfbCurrent = 0.0f, lnfb2Current = 0.0f, revFbCurrent = 0.0f;
     double sampleRate = 48000.0;
     int countdown = 0;
+    int returnDecimation = 1, returnPhase = 0;
+    float returnAccum = 0.0f, wetPrev = 0.0f, wetNext = 0.0f;
     Probes probes;
 };
 } // namespace dumble

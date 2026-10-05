@@ -102,7 +102,7 @@ Parametry (APVTS): `inputGain`, `volume`, `treble`, `middle`, `bass`, `reverbSen
 | **Sieci pasywne** | `LinearNetwork`: MNA + trapezowe modele towarzyszące; po każdej zmianie wartości (co 32 próbki tylko podczas ruchu gałek) odwrócenie macierzy i wyprowadzenie postaci stanowej `x = P·h + q·vs` → koszt na próbkę O(K²) w liczbie elementów reaktywnych. Sieć przednia (TMB w okablowaniu „Guitar”, Volume, Bright, Deep, R69 + pojemność Millera V4) i sieć środkowa (C6, C37, R53 + L2 300 mH/59 Ω, przełącznik High 0/150p…10n, drabinka Low 39k…390k/12k, gałąź LNFB C15/R54, Miller U37). |
 | **Wtórniki katodowe** | U38/U40 (bufory do miksera 220k/220k) i U12/U13 (driver DC siatek 6L6GC z zasilania −320 V, dzielnik 820k/130k): skalarny Newton w `double`, predyktor, limit kroku 5 V, przewodzenie siatki przez impedancję źródła. |
 | **Lokalne NFB** | V4 → C15 0.1µ → R54 100k → katoda V1; U38 → 470k/0.22µ → katoda V4; U40 → 270k/0.1µ → katoda U28. Zamknięte z opóźnieniem 1 próbki (przy ≥ 96 kHz pomijalne wobec stałych czasowych pętli). |
-| **Pogłos** | U20 (send) → potencjometr Send → driver/zbiornik (2 sprężyny, kaskady dyspersyjnych allpassów, zdecymowane) → U28 (recovery, sprzężenie z U40) → Return → U39 → U40. Kalibracja: wyjście zbiornika 0.1 (poziom recovery zgodny z symulacją). |
+| **Pogłos** | U20 (send) → potencjometr Send → driver/zbiornik (2 sprężyny, kaskady dyspersyjnych allpassów, zdecymowane) → U28 (recovery, sprzężenie z U40) → Return → U39 → U40. Tor powrotu (U28 → Return → U39 → U40 i jego sprzężenie) dostaje sygnał o paśmie ~4.5 kHz, więc liczy się co R-tą próbkę (R = 1/2/4 przy 2x/4x/8x, zawsze ≥ 88.2 kHz) na uśrednionym wyjściu zbiornika, z interpolacją liniową; poziom pogłosu identyczny przy każdym współczynniku (±0.03 dB). Kalibracja: wyjście zbiornika 0.1 (poziom recovery zgodny z symulacją). |
 | **Master / Accent** | Sieć liniowa: mikser (Thevenin 110k) → C49 → Master 1M audio z C50 1n (Accent) → C9 .02µ → R10 1M. |
 | **Odwracacz fazy (LTP 7025)** | Pełny nieliniowy obwód DC (płyty 108.75k/116.25k z balansem 25k, ogon 820 Ω + 18.27k) rozwiązany w `prepare()` → tablica; w czasie rzeczywistym interpolacja. |
 | **Końcówka 4×6L6GC** | Koren pentoda (6L6GC), siatki 1.5k, ekrany 470 Ω. Bias z dzielnika driverów: −39.3 V → **72.9 mA/lampę** (gorący bias, jak w symulacji). Model Korena rozkłada się dokładnie na tablice 1D: `gridTerm = Vg2^ex · F(Vg1/Vg2)`, `Ig2 = P(Vg2/µ + Vg1)`, `atan(Vpk/kvb)` (błąd < 0.001 %). Wspólne rozwiązanie anod (Newton z predyktorem), sag zasilania, OT Raa 2 kΩ (500 Ω/strona) jako idealny transformator + HPF 10 Hz / LPF 18 kHz + łagodne nasycenie. |
@@ -169,7 +169,7 @@ i zapisuje `tests/Sss002SpiceReference.h`. Trzy konfiguracje gałek × sześć p
 | Aliasing (ton 4 kHz, granica przesteru) | 2x −48 dB, 4x −48 dB, 8x −70 dB |
 | Pogłos: ogon 0.2–0.6 s vs dry | > +80 dB; po 2.5 s ≈ −68 dB względem ogona |
 | Alokacje na ścieżce audio (z pogłosem, IR, przełączaniem OS) | 0 |
-| CPU (bufor 64 @ 48 kHz, 1 rdzeń VM, z IR i pogłosem) | 2x ≈ 19 %, 4x ≈ 26 %, 8x ≈ 47.5 % |
+| CPU (bufor 64 @ 48 kHz, 1 rdzeń VM, z IR i pogłosem) | 2x ≈ 19 %, 4x ≈ 24 %, 8x ≈ 39 % (macOS, Apple Silicon, 4x: ≈ 9 % wg wskaźnika DSP) |
 
 Uwaga: przy sygnałach rzędu pojedynczych mV na wyjściu (ciemne ustawienia filtrów) zmierzone THD
 jest zawyżone przez tolerancję Newtona (1e-4 V) — to szum solvera na poziomie ok. −90 dB, test THD
@@ -181,9 +181,8 @@ dotyczy tylko przypadków z THD referencji > 0.5 %.
    Deep, Accent, mikser przez wtórniki, driver DC, 4×6L6GC, NFB do ogona PI. Zweryfikowane z ngspice.
 2. **CPU:** tablice Korena z interpolacją bikubiczną, sieci w postaci stanowej, predyktor Newtona
    (8x: 74 % → 49 % rdzenia VM), tablice pentody 6L6GC (końcówka −27 %, 8x → 47.5 %).
-   Większość kosztu to teraz 8 nieliniowych stopni przedwzmacniacza (odczyty tablic Korena).
-   Kolejni kandydaci: tor powrotu pogłosu (U28/U39/U40, pasmo zbiornika ~4.5 kHz) liczony
-   w zdecymowanej częstotliwości, SIMD dla sieci liniowych.
+   Tor powrotu pogłosu (U28/U39/U40) liczony w zdecymowanej częstotliwości (8x → 39 %).
+   Kolejny kandydat, jeśli zajdzie potrzeba: SIMD dla sieci liniowych.
 3. **Pogłos — zrobione** (`SpringTank.h`, gałki Reverb Send / Return, domyślnie 0).
 4. **Podpis i notaryzacja — przygotowane:** `scripts/sign_and_notarize.sh` + `.github/workflows/release.yml`
    (tag `v*`). Wymaga certyfikatu Developer ID i klucza App Store Connect w sekretach repozytorium;
