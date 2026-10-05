@@ -11,6 +11,11 @@ namespace dumble
     (resampled, normalised, partitioned) on JUCE's background thread and swapped in without
     blocking the audio thread. The load* methods here must be called from the message thread,
     never from processBlock().
+
+    Level: with Normalise::yes, juce::dsp::Convolution normalises the IR's energy *after* resampling
+    it to the processing rate, so the cabinet's gain would grow by 3 dB per doubling of the sample
+    rate (more taps of the same energy-normalised amplitude). rateGain undoes that, so a given IR
+    has the same level at 44.1 and 192 kHz (reference: kDefaultIrRate).
 */
 class CabinetIR
 {
@@ -18,6 +23,7 @@ public:
     void prepare (const juce::dsp::ProcessSpec& spec)
     {
         convolution.prepare (spec);
+        rateGain = (float) std::sqrt (kDefaultIrRate / spec.sampleRate);
     }
 
     void reset() noexcept { convolution.reset(); }
@@ -26,6 +32,9 @@ public:
     void process (const Context& context) noexcept
     {
         convolution.process (context);
+
+        if (! context.isBypassed)
+            context.getOutputBlock().multiplyBy (rateGain);
     }
 
     /** Loads a built-in, procedurally generated 2x12 open-back style response. Message thread only. */
@@ -89,5 +98,6 @@ public:
 private:
     static constexpr double kDefaultIrRate = 48000.0;
     juce::dsp::Convolution convolution;
+    float rateGain = 1.0f;
 };
 } // namespace dumble

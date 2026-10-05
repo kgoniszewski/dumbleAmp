@@ -124,6 +124,47 @@ public:
             expectLessThan (a8, -45.0);
         }
 
+        beginTest ("Cabinet level does not depend on the host sample rate");
+        {
+            const auto cabGainDb = [] (double rate)
+            {
+                AmpEngine engine;
+                engine.getCabinet().loadDefaultImpulseResponse();
+                engine.prepare (rate, kBlock, 1);
+                auto s = crankedSettings (1);
+                s.preamp.volume = 2.0f; // clean: compare linear gain only
+                s.cabOn = true;
+                engine.setSettings (s);
+
+                // let the convolution's background thread swap in its IR
+                std::vector<float> warm ((size_t) rate / 10, 0.0f);
+                for (int i = 0; i < 40; ++i)
+                {
+                    run (engine, warm);
+                    juce::Thread::sleep (5);
+                }
+
+                std::vector<float> x ((size_t) rate * 2);
+                for (size_t i = 0; i < x.size(); ++i)
+                    x[i] = 0.01f * (float) std::sin (2.0 * juce::MathConstants<double>::pi * 1000.0 * (double) i / rate);
+                run (engine, x);
+
+                double acc = 0.0;
+                for (auto i = x.size() / 2; i < x.size(); ++i)
+                    acc += (double) x[i] * x[i];
+                return 10.0 * std::log10 (acc / (double) (x.size() / 2)) - 20.0 * std::log10 (0.01 / std::sqrt (2.0));
+            };
+
+            const auto ref = cabGainDb (48000.0);
+            for (double rate : { 44100.0, 96000.0, 192000.0 })
+            {
+                const auto g = cabGainDb (rate);
+                logMessage (juce::String (rate / 1000.0, 1) + " kHz: gain " + juce::String (g, 2) + " dB (48 kHz: "
+                            + juce::String (ref, 2) + " dB)");
+                expectWithinAbsoluteError (g, ref, 0.5);
+            }
+        }
+
         beginTest ("Latency is reported per factor and is an integer number of samples");
         {
             AmpEngine engine;

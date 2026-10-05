@@ -5,6 +5,7 @@
 #include "CathodeFollower.h"
 #include "CircuitConstants.h"
 #include "OnePole.h"
+#include "PentodeTable.h"
 #include "TriodeModel.h"
 
 namespace dumble
@@ -32,6 +33,7 @@ public:
     void prepare (double sampleRate) noexcept
     {
         using namespace circuit;
+        table = &PentodeTable::forTube6L6GC();
         gridBiasDC = kBias * kDrvBiasBottom / (kDrvBiasBottom + kDrvBiasTop);
         turns = std::sqrt (kPrimaryLoadPerSide / kSpeakerLoad);
 
@@ -72,7 +74,7 @@ public:
         driverB.reset();
         sag.reset (idleTotal);
         supply = circuit::kHT1;
-        plateA = circuit::kHT1;
+        plateA = plateAPrev = circuit::kHT1;
     }
 
     /** PI plate swings in (volts AC), speaker voltage out. */
@@ -92,32 +94,47 @@ public:
         const auto g1B = vkB - kPowerStopper * driverB.getGridLoadCurrent() / (float) kPowerTubesPerSide;
 
         // screens (one fixed-point step per sample from the previous value)
-        screenA = kHT2 - kScreenR * korenScreenCurrent (k6L6GC, g1A, screenA);
-        screenB = kHT2 - kScreenR * korenScreenCurrent (k6L6GC, g1B, screenB);
+        screenA = kHT2 - kScreenR * table->screenCurrent (g1A, screenA);
+        screenB = kHT2 - kScreenR * table->screenCurrent (g1B, screenB);
 
-        const auto ka = (float) kPowerTubesPerSide * korenPentodeGridTerm (k6L6GC, g1A, screenA);
-        const auto kb = (float) kPowerTubesPerSide * korenPentodeGridTerm (k6L6GC, g1B, screenB);
+        const auto ka = (float) kPowerTubesPerSide * table->gridTerm (g1A, screenA);
+        const auto kb = (float) kPowerTubesPerSide * table->gridTerm (g1B, screenB);
 
-        // joint plate solve through the centre-tapped primary
+        // joint plate solve through the centre-tapped primary, started from the linear prediction
         const auto rl = kPrimaryLoadPerSide;
-        const auto kvb = k6L6GC.kvb;
-        auto va = juce::jlimit (0.0f, 2.0f * supply, plateA);
+        auto va = juce::jlimit (0.0f, 2.0f * supply, 2.0f * plateA - plateAPrev);
+        float aa = 0.0f, ab = 0.0f, dA = 0.0f, dB = 0.0f, step = 0.0f;
 
         for (int i = 0; i < kMaxPlateIterations; ++i)
         {
-            const auto vb = 2.0f * supply - va;
-            const auto f = va - supply + (ka * std::atan (va / kvb) - kb * std::atan (vb / kvb)) * rl;
-            const auto df = 1.0f + rl * (ka / (kvb * (1.0f + (va / kvb) * (va / kvb)))
-                                       + kb / (kvb * (1.0f + (vb / kvb) * (vb / kvb))));
-            const auto step = f / df;
-            va = juce::jlimit (0.0f, 2.0f * supply, va - step);
+            aa = table->plateFactor (va, dA);
+            ab = table->plateFactor (2.0f * supply - va, dB);
+            const auto f = va - supply + (ka * aa - kb * ab) * rl;
+            const auto df = 1.0f + rl * (ka * dA + kb * dB);
+            const auto vaNew = juce::jlimit (0.0f, 2.0f * supply, va - f / df);
+            step = va - vaNew;
+            va = vaNew;
             if (std::abs (step) < kPlateTolerance)
                 break;
         }
 
+        // plate factors at the final point: first-order update of the last evaluation
+        // (vb = 2 Vs - va moves opposite to va); re-evaluate if the iteration cap left a large step
+        if (std::abs (step) < 0.05f)
+        {
+            aa -= dA * step;
+            ab += dB * step;
+        }
+        else
+        {
+            aa = table->plateFactor (va, dA);
+            ab = table->plateFactor (2.0f * supply - va, dB);
+        }
+
+        plateAPrev = plateA;
         plateA = va;
-        const auto ia = ka * std::atan (va / kvb);
-        const auto ib = kb * std::atan ((2.0f * supply - va) / kvb);
+        const auto ia = ka * aa;
+        const auto ib = kb * ab;
 
         const auto avgCurrent = sag.processLowpass (ia + ib);
         supply = juce::jlimit (0.8f * kHT1, kHT1, kHT1 - kSupplyR * (avgCurrent - idleTotal));
@@ -139,6 +156,7 @@ private:
     float gridBiasDC = -43.8f, turns = 7.9f;
     float screenA = circuit::kHT2, screenB = circuit::kHT2;
     float idlePerTube = 0.04f, idleTotal = 0.16f;
-    float supply = circuit::kHT1, plateA = circuit::kHT1;
+    float supply = circuit::kHT1, plateA = circuit::kHT1, plateAPrev = circuit::kHT1;
+    const PentodeTable* table = nullptr;
 };
 } // namespace dumble
