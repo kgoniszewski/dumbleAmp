@@ -140,6 +140,7 @@ public:
             engine.prepare (kFs, kBlock, 1);
             auto settings = crankedSettings (1);
             settings.cabOn = true;
+            settings.reverb = 5.0f;
             engine.setSettings (settings);
 
             // let the convolution's background thread swap in its IR before measuring
@@ -188,6 +189,51 @@ public:
             expectEquals ((int) test::AllocationGuard::getDeallocationCount(), 0, "heap deallocation on the audio path");
         }
 
+        beginTest ("Spring reverb: transparent at 0, audible decaying tail, stable");
+        for (int os = 0; os < AmpEngine::kNumOversamplingChoices; ++os)
+        {
+            const auto render = [os] (float reverbKnob)
+            {
+                AmpEngine engine;
+                engine.prepare (kFs, kBlock, os);
+                auto s = crankedSettings (os);
+                s.volume = 4.0f;
+                s.reverb = reverbKnob;
+                engine.setSettings (s);
+                engine.reset();
+
+                std::vector<float> x ((size_t) kFs * 3, 0.0f);
+                for (size_t i = 0; i < 480; ++i) // 10 ms burst
+                    x[i] = 0.3f * (float) std::sin (2.0 * juce::MathConstants<double>::pi * 500.0 * (double) i / kFs);
+                run (engine, x);
+                return x;
+            };
+
+            const auto rms = [] (const std::vector<float>& y, double from, double to)
+            {
+                double acc = 0.0;
+                const auto a = (size_t) (from * kFs), b = (size_t) (to * kFs);
+                for (auto i = a; i < b; ++i)
+                    acc += (double) y[i] * y[i];
+                return std::sqrt (acc / (double) (b - a));
+            };
+
+            const auto dry = render (0.0f);
+            const auto wet = render (7.0f);
+
+            const auto dryTail = rms (dry, 0.2, 0.6), wetTail = rms (wet, 0.2, 0.6), lateTail = rms (wet, 2.5, 3.0);
+            logMessage (juce::String (2 << os) + "x: tail RMS 0.2-0.6 s dry " + juce::String (dryTail, 6) + ", wet "
+                        + juce::String (wetTail, 6) + ", 2.5-3 s wet " + juce::String (lateTail, 8));
+
+            expect (wetTail > 20.0 * dryTail + 1.0e-5, "reverb tail missing");
+            expect (lateTail < wetTail * 0.05, "reverb tail does not decay");
+
+            bool finite = true;
+            for (auto v : wet)
+                finite = finite && std::isfinite (v);
+            expect (finite);
+        }
+
         beginTest ("CPU benchmark (64-sample blocks @ 48 kHz)");
         for (int os = 0; os < AmpEngine::kNumOversamplingChoices; ++os)
         {
@@ -196,6 +242,7 @@ public:
             engine.prepare (kFs, kBlock, os);
             auto s = crankedSettings (os);
             s.cabOn = true;
+            s.reverb = 5.0f;
             engine.setSettings (s);
 
             std::vector<float> x ((size_t) kFs * 5);

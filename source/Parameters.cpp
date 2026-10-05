@@ -41,6 +41,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 knob (ParamIDs::bass,     "Bass",     d.bass),
                 knob (ParamIDs::presence, "Presence", d.presence),
                 knob (ParamIDs::master,   "Master",   d.master),
+                knob (ParamIDs::reverb,   "Reverb",   d.reverb),
                 decibels (ParamIDs::output, "Output", -36.0f, 12.0f, d.outputDb));
 
     layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { ParamIDs::bright, kVersion }, "Bright", d.bright),
@@ -64,6 +65,7 @@ ParamRefs::ParamRefs (juce::AudioProcessorValueTreeState& apvts)
       bass         (apvts.getRawParameterValue (ParamIDs::bass)),
       presence     (apvts.getRawParameterValue (ParamIDs::presence)),
       master       (apvts.getRawParameterValue (ParamIDs::master)),
+      reverb       (apvts.getRawParameterValue (ParamIDs::reverb)),
       output       (apvts.getRawParameterValue (ParamIDs::output)),
       bright       (apvts.getRawParameterValue (ParamIDs::bright)),
       deep         (apvts.getRawParameterValue (ParamIDs::deep)),
@@ -71,7 +73,7 @@ ParamRefs::ParamRefs (juce::AudioProcessorValueTreeState& apvts)
       oversampling (apvts.getRawParameterValue (ParamIDs::oversampling))
 {
     jassert (inputGain != nullptr && volume != nullptr && treble != nullptr && middle != nullptr
-             && bass != nullptr && presence != nullptr && master != nullptr && output != nullptr
+             && bass != nullptr && presence != nullptr && master != nullptr && reverb != nullptr && output != nullptr
              && bright != nullptr && deep != nullptr && cabOn != nullptr && oversampling != nullptr);
 }
 
@@ -87,6 +89,7 @@ AmpSettings ParamRefs::load() const noexcept
     s.bass              = bass->load (r);
     s.presence          = presence->load (r);
     s.master            = master->load (r);
+    s.reverb            = reverb->load (r);
     s.outputDb          = output->load (r);
     s.bright            = bright->load (r) >= 0.5f;
     s.deep              = deep->load (r) >= 0.5f;

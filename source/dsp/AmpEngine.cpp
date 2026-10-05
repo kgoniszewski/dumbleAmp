@@ -78,6 +78,8 @@ void AmpEngine::setSettings (const AmpSettings& s) noexcept
         ts.setMiddle (s.middle);
         ts.setBass (s.bass);
 
+        chain.get<reverbTank>().setAmount (s.reverb);
+
         auto& pwr = chain.get<powerSection>();
         pwr.setMaster (s.master);
         pwr.setPresence (s.presence);
