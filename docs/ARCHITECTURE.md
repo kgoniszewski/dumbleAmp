@@ -107,7 +107,7 @@ Parametry (APVTS): `inputGain`, `volume`, `treble`, `middle`, `bass`, `reverbSen
 | **Odwracacz fazy (LTP 7025)** | Pełny nieliniowy obwód DC (płyty 108.75k/116.25k z balansem 25k, ogon 820 Ω + 18.27k) rozwiązany w `prepare()` → tablica; w czasie rzeczywistym interpolacja. |
 | **Końcówka 4×6L6GC** | Koren pentoda (6L6GC), siatki 1.5k, ekrany 470 Ω. Bias z dzielnika driverów: −39.3 V → **72.9 mA/lampę** (gorący bias, jak w symulacji). Model Korena rozkłada się dokładnie na tablice 1D: `gridTerm = Vg2^ex · F(Vg1/Vg2)`, `Ig2 = P(Vg2/µ + Vg1)`, `atan(Vpk/kvb)` (błąd < 0.001 %). Wspólne rozwiązanie anod (Newton z predyktorem), sag zasilania, OT Raa 2 kΩ (500 Ω/strona) jako idealny transformator + HPF 10 Hz / LPF 18 kHz + łagodne nasycenie. |
 | **Globalne NFB** | Głośnik → R20 2.7k → R8 270 Ω na dole ogona PI, β = 270/2970, ≈ 12.8 dB. Pętla zamknięta z opóźnieniem 1 próbki; `PowerSection` dzieli próbki na pod-kroki tak, by pętla zawsze pracowała przy ≥ 176.4 kHz (przy 96 kHz oscylowała). |
-| **Kolumna** | `juce::dsp::Convolution`; wbudowany proceduralny IR 2x12 lub plik WAV/AIFF użytkownika. |
+| **Kolumna** | `juce::dsp::Convolution`; wbudowany proceduralny IR 2x12 lub plik WAV/AIFF użytkownika. JUCE (`Normalise::yes`) skaluje IR do energii 0.125² (−18 dB) po przepróbkowaniu do częstotliwości hosta; `CabinetIR` kompensuje to (×8 · √(48 kHz/fs)) → energia IR = 1 przy 48 kHz i ten sam poziom przy 44.1–192 kHz. Przy 1 kHz kolumna jest ok. +4 dB względem toru bez kolumny. |
 
 Wszystkie wartości elementów: `source/dsp/CircuitConstants.h` (z oznaczeniami schematu #002).
 
