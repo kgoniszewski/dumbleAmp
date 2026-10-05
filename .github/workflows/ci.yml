@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  dsp-tests-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxcomposite-dev libxi-dev libxext-dev libxrender-dev
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build (DSP tests + Standalone compile check)
+        run: cmake --build build -j4
+      - name: Run DSP tests
+        run: ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+
+  macos:
+    runs-on: macos-latest # switch to a macos-26 image label when targeting Tahoe explicitly
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -G Xcode
+      - name: Build
+        run: cmake --build build --config Release -- -quiet
+      - name: Run DSP tests
+        run: ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+      - name: auval
+        run: |
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Dsss Kgon
+      - name: pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
+            --validate "$HOME/Library/Audio/Plug-Ins/Components/Dumble SSS.component"
