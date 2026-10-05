@@ -3,6 +3,7 @@
 #include "dsp/CathodeFollower.h"
 #include "dsp/LinearNetwork.h"
 #include "dsp/PhaseInverter.h"
+#include "dsp/PentodeTable.h"
 #include "dsp/PowerAmp6L6.h"
 #include "dsp/PowerSection.h"
 #include "dsp/TriodeStage.h"
@@ -32,6 +33,33 @@ public:
                 }
             logMessage ("worst relative error (Ip > 0.1 mA) = " + juce::String (worst * 100.0, 3) + " %");
             expectLessThan (worst, 0.01);
+        }
+
+        beginTest ("Pentode tables match the analytic Koren 6L6GC model");
+        {
+            const auto& t = PentodeTable::forTube6L6GC();
+            double worstIp = 0.0, worstScreen = 0.0, worstAtan = 0.0;
+            for (float g2 = 300.0f; g2 < 460.0f; g2 += 7.3f)
+                for (float g1 = -70.0f; g1 < 25.0f; g1 += 0.173f)
+                {
+                    const auto a = korenPentodeGridTerm (k6L6GC, g1, g2), b = t.gridTerm (g1, g2);
+                    if (a * std::atan (450.0f / k6L6GC.kvb) > 1.0e-3f)
+                        worstIp = std::max (worstIp, (double) std::abs (a - b) / a);
+
+                    const auto sa = korenScreenCurrent (k6L6GC, g1, g2), sb = t.screenCurrent (g1, g2);
+                    if (sa > 1.0e-4f)
+                        worstScreen = std::max (worstScreen, (double) std::abs (sa - sb) / sa);
+                }
+            for (float v = 0.0f; v < 900.0f; v += 0.37f)
+            {
+                float d = 0.0f;
+                worstAtan = std::max (worstAtan, (double) std::abs (t.plateFactor (v, d) - std::atan (v / k6L6GC.kvb)));
+            }
+            logMessage ("worst relative error: grid term " + juce::String (worstIp * 100.0, 4) + " %, screen "
+                        + juce::String (worstScreen * 100.0, 4) + " %; atan abs " + juce::String (worstAtan, 8));
+            expectLessThan (worstIp, 1.0e-3);
+            expectLessThan (worstScreen, 1.0e-3);
+            expectLessThan (worstAtan, 1.0e-5);
         }
 
         beginTest ("Triode stage stays finite and bounded under extreme input");

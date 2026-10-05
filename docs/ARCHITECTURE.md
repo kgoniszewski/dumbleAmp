@@ -46,6 +46,7 @@ source/
     SpringTank.h            zbiornik sprężynowy (dyspersyjne allpassy, zdecymowany)
     MasterStage.h           mikser → Master (+Accent) → siatka PI
     PhaseInverter.h         LTP 7025 — rozwiązanie pełnego obwodu DC → LUT
+    PentodeTable.h          stablicowana pentoda 6L6GC (rozkład na tablice 1D, Hermite)
     PowerAmp6L6.h           driver CF DC → 4×6L6GC push-pull, sag, OT
     PowerSection.h          element łańcucha: PI → końcówka ⇄ globalne NFB (sub-kroki ≥ 176.4 kHz)
     DCBlocker.h, CabinetIR.h, OnePole.h, RealtimeSafety.h
@@ -104,7 +105,7 @@ Parametry (APVTS): `inputGain`, `volume`, `treble`, `middle`, `bass`, `reverbSen
 | **Pogłos** | U20 (send) → potencjometr Send → driver/zbiornik (2 sprężyny, kaskady dyspersyjnych allpassów, zdecymowane) → U28 (recovery, sprzężenie z U40) → Return → U39 → U40. Kalibracja: wyjście zbiornika 0.1 (poziom recovery zgodny z symulacją). |
 | **Master / Accent** | Sieć liniowa: mikser (Thevenin 110k) → C49 → Master 1M audio z C50 1n (Accent) → C9 .02µ → R10 1M. |
 | **Odwracacz fazy (LTP 7025)** | Pełny nieliniowy obwód DC (płyty 108.75k/116.25k z balansem 25k, ogon 820 Ω + 18.27k) rozwiązany w `prepare()` → tablica; w czasie rzeczywistym interpolacja. |
-| **Końcówka 4×6L6GC** | Koren pentoda (6L6GC), siatki 1.5k, ekrany 470 Ω. Bias z dzielnika driverów: −39.3 V → **72.9 mA/lampę** (gorący bias, jak w symulacji). Wspólne rozwiązanie anod (Newton), sag zasilania, OT Raa 2 kΩ (500 Ω/strona) jako idealny transformator + HPF 10 Hz / LPF 18 kHz + łagodne nasycenie. |
+| **Końcówka 4×6L6GC** | Koren pentoda (6L6GC), siatki 1.5k, ekrany 470 Ω. Bias z dzielnika driverów: −39.3 V → **72.9 mA/lampę** (gorący bias, jak w symulacji). Model Korena rozkłada się dokładnie na tablice 1D: `gridTerm = Vg2^ex · F(Vg1/Vg2)`, `Ig2 = P(Vg2/µ + Vg1)`, `atan(Vpk/kvb)` (błąd < 0.001 %). Wspólne rozwiązanie anod (Newton z predyktorem), sag zasilania, OT Raa 2 kΩ (500 Ω/strona) jako idealny transformator + HPF 10 Hz / LPF 18 kHz + łagodne nasycenie. |
 | **Globalne NFB** | Głośnik → R20 2.7k → R8 270 Ω na dole ogona PI, β = 270/2970, ≈ 12.8 dB. Pętla zamknięta z opóźnieniem 1 próbki; `PowerSection` dzieli próbki na pod-kroki tak, by pętla zawsze pracowała przy ≥ 176.4 kHz (przy 96 kHz oscylowała). |
 | **Kolumna** | `juce::dsp::Convolution`; wbudowany proceduralny IR 2x12 lub plik WAV/AIFF użytkownika. |
 
@@ -168,7 +169,7 @@ i zapisuje `tests/Sss002SpiceReference.h`. Trzy konfiguracje gałek × sześć p
 | Aliasing (ton 4 kHz, granica przesteru) | 2x −48 dB, 4x −48 dB, 8x −70 dB |
 | Pogłos: ogon 0.2–0.6 s vs dry | > +80 dB; po 2.5 s ≈ −68 dB względem ogona |
 | Alokacje na ścieżce audio (z pogłosem, IR, przełączaniem OS) | 0 |
-| CPU (bufor 64 @ 48 kHz, 1 rdzeń VM, z IR i pogłosem) | 2x ≈ 21 %, 4x ≈ 28 %, 8x ≈ 49 % |
+| CPU (bufor 64 @ 48 kHz, 1 rdzeń VM, z IR i pogłosem) | 2x ≈ 19 %, 4x ≈ 26 %, 8x ≈ 47.5 % |
 
 Uwaga: przy sygnałach rzędu pojedynczych mV na wyjściu (ciemne ustawienia filtrów) zmierzone THD
 jest zawyżone przez tolerancję Newtona (1e-4 V) — to szum solvera na poziomie ok. −90 dB, test THD
@@ -179,7 +180,10 @@ dotyczy tylko przypadków z THD referencji > 0.5 %.
 1. **Pełna topologia #002 — zrobione:** 5751/7025, lokalne pętle NFB, filtry High/Low z dławikiem,
    Deep, Accent, mikser przez wtórniki, driver DC, 4×6L6GC, NFB do ogona PI. Zweryfikowane z ngspice.
 2. **CPU:** tablice Korena z interpolacją bikubiczną, sieci w postaci stanowej, predyktor Newtona
-   (8x: 74 % → 49 % rdzenia VM). Kolejne kandydaty: tablica pentody 6L6GC, SIMD dla sieci.
+   (8x: 74 % → 49 % rdzenia VM), tablice pentody 6L6GC (końcówka −27 %, 8x → 47.5 %).
+   Większość kosztu to teraz 8 nieliniowych stopni przedwzmacniacza (odczyty tablic Korena).
+   Kolejni kandydaci: tor powrotu pogłosu (U28/U39/U40, pasmo zbiornika ~4.5 kHz) liczony
+   w zdecymowanej częstotliwości, SIMD dla sieci liniowych.
 3. **Pogłos — zrobione** (`SpringTank.h`, gałki Reverb Send / Return, domyślnie 0).
 4. **Podpis i notaryzacja — przygotowane:** `scripts/sign_and_notarize.sh` + `.github/workflows/release.yml`
    (tag `v*`). Wymaga certyfikatu Developer ID i klucza App Store Connect w sekretach repozytorium;
