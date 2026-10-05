@@ -5,7 +5,8 @@ built with **JUCE 9.0.3** as a **Standalone app** and an **Audio Unit (AUv2)** (
 Designed for the **IK Multimedia AXE I/O One** (mono instrument input → mono output).
 
 * 12AX7 preamp stages solved as nonlinear circuits (Koren tube model, Newton-Raphson)
-* exact 3rd-order TMB tone stack, Volume/Bright, Presence/Deep NFB loop
+* exact 3rd-order TMB tone stack, Volume/Bright, Presence/Deep NFB loop, tube-driven spring reverb
+* triode stage cross-checked against ngspice (`spice/`, `tests/SpiceTests.cpp`)
 * 12AT7 long-tail-pair phase inverter, 4×6550 push-pull power amp with sag and bias shift
 * `juce::dsp::ProcessorChain`, `juce::dsp::Oversampling` (2x / 4x / 8x), `AudioProcessorValueTreeState`
 * real-time safe `processBlock()` (verified: zero heap allocations on the audio path)
@@ -39,6 +40,18 @@ cmake --build build-tests
 
 The DSP tests run on macOS and Linux. `-DDUMBLE_RTSAN=ON` (LLVM clang ≥ 20) additionally builds
 them with RealtimeSanitizer.
+
+## Signed release (Developer ID + notarization)
+
+Locally (after a Release build):
+
+```sh
+xcrun notarytool store-credentials dumble-notary --apple-id <id> --team-id <TEAMID> --password <app-specific-password>
+DEVELOPER_ID_APP="Developer ID Application: <Name> (<TEAMID>)" NOTARY_PROFILE=dumble-notary ./scripts/sign_and_notarize.sh
+```
+
+On GitHub: push a `v*` tag; `.github/workflows/release.yml` signs, notarizes and attaches the DMG.
+It needs the secrets listed at the top of that workflow.
 
 ## Using it with the AXE I/O One
 

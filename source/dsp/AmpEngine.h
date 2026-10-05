@@ -11,6 +11,7 @@
 #include "DCBlocker.h"
 #include "PowerSection.h"
 #include "RealtimeSafety.h"
+#include "SpringReverb.h"
 #include "ToneStackTMB.h"
 #include "TriodeStage.h"
 
@@ -21,7 +22,7 @@ struct AmpSettings
 {
     float inputGainDb = 0.0f;
     float volume = 5.0f, treble = 6.0f, middle = 5.0f, bass = 4.0f;
-    float presence = 4.0f, master = 7.0f;
+    float presence = 4.0f, master = 7.0f, reverb = 0.0f;
     float outputDb = -6.0f;
     bool bright = true, deep = false, cabOn = true;
     int oversamplingIndex = 1; // 0 = 2x, 1 = 4x, 2 = 8x
@@ -31,7 +32,7 @@ struct AmpSettings
     The complete mono amplifier:
 
       PreChain  (base rate)  : input gain -> 20 Hz HPF
-      AmpChain  (oversampled): V1a -> Volume/Bright -> V1b -> TMB -> V2a -> PI/Power/NFB
+      AmpChain  (oversampled): V1a -> Volume/Bright -> V1b -> TMB -> spring reverb mix -> V2a -> PI/Power/NFB
       PostChain (base rate)  : DC blocker -> cabinet IR -> output gain
 
     Three Oversampling objects (2x/4x/8x) and three AmpChains are fully prepared up front, so
@@ -45,10 +46,10 @@ public:
 
     using PreChain  = juce::dsp::ProcessorChain<juce::dsp::Gain<float>, juce::dsp::IIR::Filter<float>>;
     using AmpChain  = juce::dsp::ProcessorChain<TriodeStage, BrightVolume, TriodeStage,
-                                                ToneStackTMB, TriodeStage, PowerSection>;
+                                                ToneStackTMB, SpringReverb, TriodeStage, PowerSection>;
     using PostChain = juce::dsp::ProcessorChain<DCBlocker, CabinetIR, juce::dsp::Gain<float>>;
 
-    enum AmpIndex  { v1a, volumeStage, v1b, toneStack, v2a, powerSection };
+    enum AmpIndex  { v1a, volumeStage, v1b, toneStack, reverbTank, v2a, powerSection };
     enum PostIndex { dcBlocker, cabinet, outputGain };
 
     AmpEngine();

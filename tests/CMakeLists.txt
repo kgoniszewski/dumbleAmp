@@ -6,6 +6,7 @@ target_sources(DumbleTests PRIVATE
     ToneStackTests.cpp
     TriodeTests.cpp
     EngineTests.cpp
+    SpiceTests.cpp
     ${PROJECT_SOURCE_DIR}/source/dsp/AmpEngine.cpp)
 
 target_include_directories(DumbleTests PRIVATE ${PROJECT_SOURCE_DIR}/source)

@@ -1,0 +1,27 @@
+* Dumble SSS - V1a 12AX7 common-cathode stage (reference for TriodeStage, see tests/SpiceTests.cpp)
+* Koren 12AX7: mu=100 ex=1.4 kg1=1060 kp=600 kvb=300; grid diode Ig = 2e-4 * Vgk^1.5
+.param mu=100 ex=1.4 kg1=1060 kp=600 kvb=300
+.param amp=0.1
+
+VBP bp 0 DC 300
+VIN in 0 DC 0 SIN(0 {amp} 1000)
+RGS in g 68k
+RP  bp p 100k
+CP  p 0 150p
+RK  k 0 1.5k
+CK  k 0 25u
+CC  p out 22n
+RL  out 0 1meg
+
+* plate current (plate -> cathode)
+BIP p k I = {2*pwr(max((max(v(p,k),0)/kp)*ln(1+exp(kp*(1/mu+v(g,k)/sqrt(kvb+max(v(p,k),0)^2)))),1e-12),ex)/kg1}
+* grid current (grid -> cathode)
+BIG g k I = {2e-4*pwr(max(v(g,k),0),1.5)}
+
+.control
+op
+print v(p) v(k)
+tran 2u 60m 40m
+fourier 1k v(out)
+.endc
+.end

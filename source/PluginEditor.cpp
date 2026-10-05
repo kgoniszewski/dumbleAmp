@@ -12,6 +12,7 @@ DumbleAudioProcessorEditor::DumbleAudioProcessorEditor (DumbleAudioProcessor& p)
     addKnob (middle,   ParamIDs::middle,    "MIDDLE");
     addKnob (bass,     ParamIDs::bass,      "BASS");
     addKnob (presence, ParamIDs::presence,  "PRESENCE");
+    addKnob (reverb,   ParamIDs::reverb,    "REVERB");
     addKnob (master,   ParamIDs::master,    "MASTER");
     addKnob (input,    ParamIDs::inputGain, "INPUT");
     addKnob (output,   ParamIDs::output,    "OUTPUT");
@@ -122,9 +123,9 @@ void DumbleAudioProcessorEditor::resized()
     // main control row (panel order of the SSS)
     auto row = area.removeFromTop (juce::roundToInt (190 * scale));
     auto switches = row.removeFromRight (juce::roundToInt (110 * scale));
-    const auto knobWidth = row.getWidth() / 6;
+    const auto knobWidth = row.getWidth() / 7;
 
-    for (auto* k : { &volume, &treble, &middle, &bass, &presence, &master })
+    for (auto* k : { &volume, &treble, &middle, &bass, &presence, &reverb, &master })
     {
         auto cell = row.removeFromLeft (knobWidth).reduced (juce::roundToInt (4 * scale));
         k->label.setBounds (cell.removeFromTop (juce::roundToInt (22 * scale)));

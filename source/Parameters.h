@@ -15,6 +15,7 @@ namespace ParamIDs
     inline constexpr const char* bass         = "bass";
     inline constexpr const char* presence     = "presence";
     inline constexpr const char* master       = "master";
+    inline constexpr const char* reverb       = "reverb";
     inline constexpr const char* output       = "output";
     inline constexpr const char* bright       = "bright";
     inline constexpr const char* deep         = "deep";
@@ -41,6 +42,7 @@ struct ParamRefs
     std::atomic<float>* bass;
     std::atomic<float>* presence;
     std::atomic<float>* master;
+    std::atomic<float>* reverb;
     std::atomic<float>* output;
     std::atomic<float>* bright;
     std::atomic<float>* deep;

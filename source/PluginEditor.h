@@ -36,7 +36,7 @@ private:
     DumbleAudioProcessor& ampProcessor;
     dumble::ui::AmpLookAndFeel lookAndFeel;
 
-    Knob volume, treble, middle, bass, presence, master, input, output;
+    Knob volume, treble, middle, bass, presence, reverb, master, input, output;
     juce::ToggleButton bright, deep, cabinet;
     std::unique_ptr<ButtonAttachment> brightAttachment, deepAttachment, cabinetAttachment;
 
