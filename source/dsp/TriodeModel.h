@@ -27,8 +27,10 @@ namespace detail
 {
     inline float softplus (float z) noexcept
     {
-        // log(1 + e^z) without overflow
-        return z > 30.0f ? z : std::log1p (std::exp (z));
+        // log(1 + e^z) without overflow (logf is markedly cheaper than log1pf; for tiny e^z the
+        // first-order term is exact to float precision)
+        const auto ez = std::exp (std::min (z, 30.0f));
+        return z > 30.0f ? z : (ez < 1.0e-4f ? ez : std::log (1.0f + ez));
     }
 }
 
@@ -48,7 +50,7 @@ inline TriodeCurrent korenTriode (const KorenTriodeParams& p, float vgk, float v
 
     // one exp() shared by softplus and its derivative (the logistic sigmoid)
     const auto ez = std::exp (std::min (z, 30.0f));
-    const auto sp = z > 30.0f ? z : std::log1p (ez);
+    const auto sp = z > 30.0f ? z : (ez < 1.0e-4f ? ez : std::log (1.0f + ez));
     const auto e1 = u / p.kp * sp;
 
     if (e1 <= 1.0e-9f)
