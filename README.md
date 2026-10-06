@@ -16,6 +16,8 @@ Designed for the **IK Multimedia AXE I/O One** (mono instrument input → mono o
 
 Architecture and design notes (Polish): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
+Design of a planned VOX AC30C2 emulation on the same core (Polish): [docs/AC30C2_ARCHITECTURE.md](docs/AC30C2_ARCHITECTURE.md)
+
 ## Build (macOS 26, Xcode 26)
 
 ```sh
