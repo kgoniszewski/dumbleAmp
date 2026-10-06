@@ -16,6 +16,7 @@ Konwencja znaczników przy wartościach elementów:
 * **[VAC]** — voxac30.org.uk (transformatory, EL84),
 * **[AIK]** — Aiken Amplification, *Is the Vox AC-30 Really Class A?*,
 * **[FOR]** — Music Electronics Forum / The Amp Garage (Cut, bias),
+* **[AUT]** — ustalenia autora projektu (rozstrzygnięcia niejasności schematu, dane katalogowe zbiornika),
 * **[est]** — wartość wyliczona z elementów [C2] (szacunek, do potwierdzenia symulacją),
 * **[?]** — nieczytelne lub nieobecne na schemacie; do weryfikacji pomiarem egzemplarza.
 
@@ -53,16 +54,28 @@ Schemat C2 zmienia kilka założeń typowych dla vintage AC30:
 3. **Tone Cut i Master są za odwracaczem fazy** — Cut między fazami za kondensatorami sprzęgającymi, Master
    jako tłumik różnicowy przed siatkami EL84 (jak w CC2 **[CC2]**).
 4. **Tremolo** to oscylator z przesuwnikiem fazy na tranzystorze MOSFET wysokiego napięcia (LND150N3), którego sygnał
-   przez C48 **moduluje drugą siatkę odwracacza fazy** — nie optoizolator.
+   przez suwak Depth (VR8) trafia na **punkt wspólny R118/R115**, czyli na składową wspólną siatek EL84 —
+   **tremolo przez modulację biasu końcówki**, nie optoizolator. (Pierwsza wersja dokumentu błędnie wskazywała
+   siatkę B odwracacza fazy: C48 tylko uziemia ją dla AC — poprawione przy implementacji.)
 5. Końcówka: **wspólny rezystor katodowy 50 Ω ∥ 220 µF**, **brak globalnego NFB** (uzwojenie wtórne idzie wyłącznie do gniazd).
 
-### 0.3 Pozostałe niepewności
+### 0.3 Rozstrzygnięte niejasności i pozostałe niepewności
 
-* dokładna kolejność drabinki RC zasilania B+3/B+4/B+5 i prowadzenie odczepu OT / zasilania ekranów (skan częściowo
-  nieczytelny) **[?]**,
-* impedancja transformatora wyjściowego — nie ma jej na schemacie; przyjmujemy Raa ≈ 4 kΩ (16 Ω) **[VAC]**,
-* typ zbiornika pogłosu (impedancja wejścia/wyjścia) **[?]**,
-* napięcia pracy — schematy C2 ich nie podają; wyliczamy je z elementów (**[est]**) i ze schematu CC2.
+Rozstrzygnięte **[AUT]**:
+
+* **Transformator wyjściowy:** Raa = **4 kΩ** (anoda–anoda) — standardowe obciążenie 4 × EL84 w push-pull z polaryzacją
+  katodową **[AUT]**, **[VAC]**. Lista części podaje tylko numer 550022-1000042212, bez parametrów **[CC2]**.
+* **Zasilanie końcówki:** anody (odczep OT) z **B+1** — pierwszego węzła za prostownikiem; ekrany z **B+2**, za R120 1k 10 W
+  i C68 100 µF, przez własne 470R na lampę **[AUT]**, **[C2]**. W C2 tę funkcję pełni rezystor R120; dławik 15 H z listy
+  części dotyczy CC1/CC2 **[CC2]**.
+* **Drabinka B+:** B+3 → odwracacz fazy (V3), B+4 → V2 (Top Boost), B+5 → V1 (wejście, najlepiej odfiltrowane) **[AUT]**, **[C2]**.
+* **Zbiornik pogłosu:** 600 Ω na wejściu, 2250 Ω na wyjściu, montaż poziomy otwartą stroną w dół (§3.5) **[AUT]**.
+
+Pozostaje:
+
+* napięcia pracy — schematy C2 ich nie podają; wyliczamy je z elementów (**[est]**) i ze schematu CC2,
+* czas wybrzmiewania zbiornika — oznaczenia „9EB2C1B” na arkuszu Rev/FX C2 i „BL3EB3C1B” w liście części CC2 różnią
+  się cyfrą decay (2 = średni, 3 = długi), §3.5.
 
 Skany schematów **nie są** dołączane do repozytorium (materiał chroniony); wartości są przepisane do
 `ac30/dsp/Ac30Constants.h` z oznaczeniami elementów.
@@ -100,7 +113,7 @@ ac30/
     OpAmp.h                     model NJM2147: wzmocnienie z sieci RC + miękkie nasycenie szyn ±27 V
     PreampAC30.h                wejścia Hi/Lo, Normal (C7, R13∥C8, VR1), TB (C9, VR2+C15), mikser U1B
     ReverbFx.h                  driver U2B + bufory 6×47R → SpringTank → recovery U5A → Level/Tone → suma U5B
-    TremoloOsc.h                oscylator z przesuwnikiem fazy (Q4 LND150) → Depth VR8 → C48
+    TremoloOsc.h                oscylator z przesuwnikiem fazy (Q4 LND150) → Depth VR8 → bias siatek EL84
     PhaseInverterAC30.h         V3 LTP (R55 1k2 / R60 47k, anody 100k/100k, C42 47p) + sieć wyjść:
                                 C50/C51, Tone Cut (VR9 + C80), Master różnicowy (VR10 + R105/R112/R115/R118 + 1M)
     PowerAmpEL84.h              4×EL84 PP, stoppery 3k3, ekrany 470R, wspólna katoda R119 ∥ C74, OT
@@ -154,12 +167,14 @@ target_compile_definitions(VoxAC30C2 PUBLIC JUCE_USE_CUSTOM_PLUGIN_STANDALONE_AP
   │                 dry ───────────────────────────────────────────────────────────── R85 56k ─┐
   │                 U2B driver ─► 6× bufor ∥ 47R ─► zbiornik ─► U5A recovery ─► VR6 Level / VR5 Tone ─► R84 56k ─┴─► U5B ×4.9
   │   PhaseInverterAC30                                                    (B+3)
-  │                 C45 100n ─► V3 LTP (R55 1k2 + ogon R60 47k, anody 100k/100k, C42 47p) ◄─ C48 ◄─ VR8 Depth ◄─ TremoloOsc (VR7 Speed)
+  │                 C45 100n ─► V3 LTP (R55 1k2 + ogon R60 47k, anody 100k/100k, C42 47p), siatka B: C48 do masy
   │                 ─► C50/C51 100n ─► Tone Cut (VR9 220k + C80 4.7n między fazami)
   │                 ─► R105/R112 10k ─► Master VR10 (różnicowo) ─► upływy 1M ─► OP+ / OP−
+  │                 TremoloOsc (VR7 Speed) ─► VR8 Depth ─► węzeł R118/R115 (składowa wspólna siatek EL84)
   │   PowerAmpEL84  stoppery 3k3 ─► 4×EL84 (2 pary ∥), ekrany 470R, wspólna katoda R119 50Ω ∥ C74 220µ
   │                 ─► OT (Raa ≈ 4k : 16 Ω), bez NFB ─► 2 × 8 Ω szeregowo
-  │                 ⇅ PowerSupplyAC30: B+1 (47µ) ─ 1k ─ B+2 (100µ) ─ 22k ─ B+3 ─ 10k ─ B+4 ─ 22k ─ B+5
+  │                 ⇅ zasilacz: B+1 (47µ) ─ 1k ─ B+2 (100µ) ─┬─ 22k ─ B+3
+  │                                                          └─ 10k ─ B+4 ─ 22k ─ B+5
   ▼
   Oversampling::processSamplesDown
   │  PostChain (fs)       DCBlocker → CabinetIR (2×12 Greenback / IR użytkownika) → dsp::Gain (Output)
@@ -176,7 +191,7 @@ using PostChain = juce::dsp::ProcessorChain<DCBlocker, CabinetIR, juce::dsp::Gai
 ```
 
 `PowerSectionAC30` łączy `TremoloOsc` + `PhaseInverterAC30` + `PowerAmpEL84` + `PowerSupplyAC30` w jeden element
-łańcucha: tremolo moduluje siatkę PI, Cut i Master obciążają wyjścia PI, a prąd końcówki (przez drabinkę B+)
+łańcucha: tremolo moduluje bias siatek EL84, Cut i Master obciążają wyjścia PI, a prąd końcówki (przez drabinkę B+)
 zmienia zasilanie PI i przedwzmacniacza — wszystko w tej samej próbce. Napięcia B+3…B+5 są przekazywane do
 `PreampAC30` z opóźnieniem jednej próbki (stałe czasowe drabinki ≫ okres próbkowania).
 Każdy procesor spełnia kontrakt `prepare(const ProcessSpec&)`, `process(const Context&) noexcept`, `reset()`
@@ -240,6 +255,7 @@ nieliniowość (przewodzenie siatki V2b, asymetryczne obcięcie V2a/V2b).
 | Pętla FX | send przez dzielnik −10 dB (R41 470R, R38 4k7, R36 1k8); return U1A ×3.8 (R30 5k1 / R31 1k8), Zenery 27 V; bypass SW1 | [C2] |
 | Driver | U2B: wejście C37 560 pF, R42 47k, R44 1M; sprzężenie R48 330k / R45 5k6 (R46 47R) → wzm. ≈ ×60 | [C2], [est] |
 | Stopień mocy | 5 buforów (U2A, U3A, U3B, U4A, U4B) + U2B równolegle, każdy przez **47R** → wejście zbiornika (J23) | [C2] |
+| Zbiornik | kod Accutronics/Belton: wejście **E = 600 Ω**, wyjście **B = 2250 Ω**, montaż **B** = poziomo, otwartą stroną w dół. Arkusz Rev/FX C2: **9EB2C1B** (decay 2 = średni, ≈ 1.75–3 s); lista części CC2: **BL3EB3C1B** (3 sprężyny, decay 3 = długi, ≈ 2.75–4 s). Niska impedancja wejścia pasuje do sterowania z op-ampów (6 × 47R ∥ ≈ 7.8 Ω) | [C2], [CC2], [AUT] |
 | Recovery | U5A: R75 220k, R76 8k2, R77 100k ∥ C55 330 pF, C56 56 nF → pasmo ≈ 350 Hz – 4.8 kHz, wzm. ≈ ×13 | [C2], [est] |
 | Level / Tone | R78 33k → VR6 B100K (Level); VR5 A500K z C47 47 pF / C49 10 nF (Tone) | [C2] |
 | Sumowanie | dry R85 56k + wet R84 56k → U5B (R80 3k9 / R82 1k → ×4.9, R83 22k, C85 10 pF) → R_FX_RET | [C2] |
@@ -255,7 +271,8 @@ nieliniowość (przewodzenie siatki V2b, asymetryczne obcięcie V2a/V2b).
 | Sprzęgające | C50 / C51 100 nF | [C2] |
 | **Tone Cut** | VR9 B220K szeregowo z **C80 4.7 nF między fazami** (za C50/C51) | [C2] |
 | **Master** | R105 / R112 10k szeregowo, **VR10 A500K między fazami**, R115 / R118 220k, R113 / R114 / R116 1M (upływy siatek EL84) → OP+ / OP− | [C2] |
-| Tremolo | C48 100 nF z suwaka VR8 (Depth) na **siatkę B** odwracacza fazy | [C2] |
+| Siatka B | C48 100 nF do masy (wejście nieodwracające uziemione dla AC) | [C2] |
+| Tremolo | suwak VR8 (Depth) na węzeł R118/R115 → składowa wspólna siatek EL84 | [C2] |
 
 **Mechanizm Cut:** kondensator między dwoma węzłami w przeciwfazie widzi podwójne napięcie, więc dla każdej
 strony działa jak bocznik `2C` do wirtualnej masy przez `R_cut/2`. Przy impedancji źródła strony `Rs`
@@ -278,11 +295,13 @@ i upływy siatek są w modelu **jedną** siecią liniową obciążającą PI, a 
 | Przesuwnik fazy | C61 100 nF, C63 22 nF, C64 10 nF, C62 10 nF, R89 3M3, R87 1M, R91 100k | [C2] |
 | Polaryzacja | R90 470R ∥ C66 100 µF, R92 10k; C60 10 µF | [C2] |
 | Speed | VR7 C2.2M + R86 27k | [C2] |
-| Depth | R94 510k, C67 22 nF → VR8 B500K → C48 100 nF → siatka B PI | [C2] |
+| Depth | R94 510k, C67 22 nF → VR8 B500K → węzeł R118/R115 (siatki EL84 przez 220k) | [C2] |
 | Włączanie | Q2 2SC2910 (TREM_ON, sterowany z footswitcha przez R96 10k / R98 3k3) | [C2] |
 
-Tremolo C2 działa przez **modulację punktu pracy odwracacza fazy** — zmienia wzmocnienie LTP i symetrię, więc
-obok modulacji amplitudy daje lekką modulację barwy i zniekształceń (inaczej niż tremolo optyczne).
+Tremolo C2 działa przez **modulację biasu końcówki**: LFO (±60 V na górze potencjometru Depth) przesuwa wspólnie
+obie siatki EL84; ujemna połówka przycina lampy, dodatnia jest ograniczana przewodzeniem siatek, a C74 na katodzie
+dodaje własną dynamikę. Obok amplitudy zmienia się więc barwa i kompresja, a przy dużym Depth efekt staje się
+„siekany” (inaczej niż tremolo optyczne).
 
 ### 3.8 Końcówka mocy (V4–V7, EL84)
 
@@ -293,7 +312,7 @@ obok modulacji amplitudy daje lekką modulację barwy i zniekształceń (inaczej
 | Katoda | **wspólna R119 50 Ω 10 W ∥ C74 220 µF / 50 V** | [C2] |
 | Spoczynek | ≈ 10 V na Rk → ≈ 0.2 A łącznie, ≈ 50 mA / lampę; ≈ 12.5 V przy pełnej mocy | [AIK], [FOR] |
 | NFB | **brak** | [C2] |
-| OT | wtórne 8 / 16 Ω (przełącznik), Raa ≈ 4 kΩ **[?]** (brak na schemacie) | [C2], [VAC] |
+| OT | Raa **4 kΩ** (P/N 550022-1000042212, bez parametrów w liście części), wtórne 8 / 16 Ω (przełącznik) | [C2], [CC2], [AUT] |
 | Głośniki | 2 × 8 Ω **szeregowo** = 16 Ω | [C2] |
 
 ### 3.9 Zasilanie
@@ -301,11 +320,11 @@ obok modulacji amplitudy daje lekką modulację barwy i zniekształceń (inaczej
 | Węzeł | Elementy | Zasila | Źródło |
 |---|---|---|---|
 | Uzwojenie WN | 2 × ~262 VAC z odczepem, prostownik pełnookresowy (2 × 1N4007 na gałąź, 1 nF/1 kV), R107 / R109 22R 5 W, Standby | | [C2] |
-| B+1 | C72 47 µF / 450 V (+ C71 10 nF) — ≈ 360 V bez obciążenia **[est]** | odczep OT (anody) **[?]** | [C2] |
-| B+2 | R120 1k 10 W → C68 100 µF (+ C65 10 nF) | ekrany EL84 **[?]**, oscylator tremolo | [C2] |
-| B+3 | R74 22k 1 W → C58 10 µF (+ C59 10 nF) | V3 (PI) | [C2] |
-| B+4 | R22 10k → C20 10 µF (+ C16 10 nF) | V2 | [C2] |
-| B+5 | R15 22k → C10 10 µF (+ C14 10 nF) | V1 | [C2] |
+| B+1 | C72 47 µF / 450 V (+ C71 10 nF) — ≈ 360 V bez obciążenia **[est]** | odczep OT (anody EL84) | [C2], [AUT] |
+| B+2 | R120 1k 10 W → C68 100 µF (+ C65 10 nF) | ekrany EL84 (przez 470R na lampę), oscylator tremolo | [C2], [AUT] |
+| B+3 | R74 22k 1 W → C58 10 µF (+ C59 10 nF) | V3 (odwracacz fazy) | [C2], [AUT] |
+| B+4 | R22 10k → C20 10 µF (+ C16 10 nF) | V2 (Top Boost) | [C2], [AUT] |
+| B+5 | R15 22k → C10 10 µF (+ C14 10 nF) | V1 (wejście) | [C2], [AUT] |
 | ±27 V | ~25 VAC, D12/D13, R106/R103 220R, Zenery D11/D6 27 V, C70/C73/C77/C81 1000 µF | op-ampy | [C2] |
 
 Prostownik krzemowy oznacza brak sagu lampy GZ34 (która była jeszcze w CC2 **[CC2]**); pozostaje sag z rezystancji
@@ -323,7 +342,7 @@ uzwojeń, R107/R109 22R i R120 1k. Drabinka RC przenosi zmiany prądu końcówki
 | **V2a → V2b (DC)** | V2a jako `TriodeStage` (100k, 1k5∥22µ); V2b jako `CathodeFollower` (Rk 56k, C84) z siatką = `Vp(V2a)` w tej samej iteracji — przewodzenie siatki V2b przez impedancję anody V2a | `TriodeStage.h`, `CathodeFollower.h` |
 | **Stos TB** | `LinearNetwork` (C23, R19, C28, C38, VR3, VR4, R47, C25, R34, R35) zasilany z katody V2b, obciążony wejściem „+” U1B | `LinearNetwork.h`, `Pots.h` |
 | **Op-ampy NJM2147** | `OpAmp.h`: idealny wzmacniacz w sieci RC (wzmocnienie i bieguny z elementów [C2]) + miękkie nasycenie przy ±(27 V − 1.5 V) + ograniczenie slew rate; mikser U1B, U1A, U2B, U5A, U5B | nowy |
-| **Pogłos** | driver U2B ×60 z HPF C37 → bufor prądowy (6 × 47R ∥ = 7.8 Ω) → `SpringTank` (2 sprężyny, dyspersyjne allpassy, zdecymowany) → U5A (pasmo 350 Hz – 4.8 kHz) → VR6/VR5 (sieć liniowa) → suma z dry w U5B. Tor powrotu liczony w zdecymowanej częstotliwości (pasmo < 5 kHz), jak w SSS. Wyciszenie Q1 = rampa | `SpringTank.h`, `OnePole.h` |
+| **Pogłos** | driver U2B ×60 z HPF C37 → bufor (6 × 47R ∥ = 7.8 Ω) → cewka wejściowa zbiornika 600 Ω (indukcyjna: prąd napędu opada z częstotliwością, model RL) → `SpringTank` (3 sprężyny, dyspersyjne allpassy, zdecymowany; czas wybrzmiewania jako parametr konstrukcyjny „średni/długi”) → przetwornik 2250 Ω obciążony R75 220k → U5A (pasmo 350 Hz – 4.8 kHz) → VR6/VR5 (sieć liniowa) → suma z dry w U5B. Tor powrotu liczony w zdecymowanej częstotliwości (pasmo < 5 kHz), jak w SSS. Wyciszenie Q1 = rampa | `SpringTank.h`, `OnePole.h` |
 | **Tremolo** | oscylator Q4 zasymulowany offline w ngspice (`spice/ac30_trem_osc.cir`) dla siatki położeń VR7 → tablice: częstotliwość, amplituda i kształt fali (1 okres, 256 punktów) w funkcji Speed. W czasie rzeczywistym: akumulator fazy + interpolacja kształtu, amplituda przez VR8/R94/C67 → C48 jako źródło napięcia w sieci wejściowej PI (siatka B). Włącz/wyłącz (Q2) z rampą | nowy `TremoloOsc.h` |
 | **Odwracacz fazy** | LTP (R55 1k2 + R60 47k, anody 100k/100k z B+3) — nieliniowy obwód rozwiązywany Newtonem 3×3 (dwie anody + węzeł katody) zamiast samej LUT, bo siatka B nie jest stała (tremolo); C42 47 pF i całe obciążenie wyjść (C50/C51, Cut, Master, upływy, stoppery 3k3, prąd siatek EL84) jako jedna `LinearNetwork` z dwoma wejściami | wzorzec `PhaseInverter.h`, `TriodeStage.h` |
 | **Siatki EL84** | przewodzenie siatek (RGI) przez stoppery 3k3 ładuje C50/C51 → **blocking distortion** i przesunięcie biasu siatek; prąd siatki wstrzykiwany do sieci wyjść PI | `gridCurrent()` z `TriodeModel.h` |
@@ -460,7 +479,7 @@ macOS (build Xcode, testy, `auval -v aufx Ac30 Kgon`, pluginval).
 5. **Efekty** — `ReverbFx` (+ `SpringTank`), `TremoloOsc` (tablice z SPICE).
 6. **Plugin** — `Parameters`, `PluginProcessor`, `PluginEditor`, `StandaloneApp`, IR 2×12 Greenback.
 7. **Walidacja i wydanie** — auval, pluginval, CPU, podpis + notaryzacja, DMG.
-8. **Kalibracja** — wartości **[?]** / **[est]** (Raa OT, napięcia B+, drabinka zasilania, zbiornik) porównane
+8. **Kalibracja** — wartości **[est]** (napięcia B+, wzmocnienia op-ampów, czas wybrzmiewania zbiornika) porównane
    z pomiarem egzemplarza C2; korekta `Ac30Constants.h`.
 
 ---
@@ -469,7 +488,9 @@ macOS (build Xcode, testy, `auval -v aufx Ac30 Kgon`, pluginval).
 
 * **[C2]** VOX R&D UK, *AC30C2 PreAmp*, *AC30C2 Power Amp*, *AC30C2 Rev/FX* — schematy, 15.12.2009, rewizja ISS3a
   (skany dostarczone przez autora projektu, poza repozytorium)
-* **[CC2]** KORG, *Service Manual AC30CC2 / AC30CC2X*, wyd. 1, 21.10.2005 (schemat blokowy, preamp)
+* **[CC2]** KORG, *Service Manual AC30CC2 / AC30CC2X*, wyd. 1, 21.10.2005 (schemat blokowy, preamp, listy części)
+* **[AUT]** ustalenia autora projektu (Raa OT, zasilanie anod/ekranów, drabinka B+, specyfikacja zbiornika)
+* Accutronics/Belton — system oznaczeń zbiorników pogłosu (typ, impedancja wejścia/wyjścia, decay, montaż)
 * ampbooks.com — *Circuit Analysis of the Vox AC30*: https://www.ampbooks.com/mobile/classic-circuits/vox-ac30/
 * ampbooks.com — *Bright Boost Capacitor Calculator*: https://www.ampbooks.com/mobile/amplifier-calculators/bright-boost/
 * ampbooks.com — *Digital Modeling of a Guitar Amplifier Tone Stack*: https://www.ampbooks.com/mobile/dsp/tonestack/
@@ -481,3 +502,67 @@ macOS (build Xcode, testy, `auval -v aufx Ac30 Kgon`, pluginval).
 * The Amp Garage — *What's happening with a Vox cut control*: https://ampgarage.com/forum/viewtopic.php?t=35508
 * Music Electronics Forum — *Biasing an AC30*: https://music-electronics-forum.com/forum/amplification/guitar-amps/maintenance-troubleshooting-repair/4519-biasing-an-ac30
 * N. Koren, *Improved vacuum tube models for SPICE simulations* (modele triod/pentod)
+
+---
+
+## 13. Stan implementacji (kod w `ac30/`)
+
+Zaimplementowane etapy 2–6 (bez kalibracji pomiarem egzemplarza). Różnice względem projektu z §1–§11:
+
+* **Bez przenoszenia plików do `ampcore`:** rdzeń z `source/dsp` (tablice Korena, `PentodeTable`, `SpringTank`,
+  `CabinetIR`, `DCBlocker`, `Pots`, `OnePole`) jest współdzielony przez ścieżkę include; kod AC30 żyje w
+  przestrzeni nazw `ac30`. Dumble bez zmian (jedyna zmiana: publiczne `SpringTank::isQuiet()`).
+* **`NodalNetwork`** (`ac30/dsp/NodalNetwork.h`) — uogólnienie `LinearNetwork` na wiele portów (źródła napięcia
+  i porty prądowe): `x = P h + Q u`. Lampy, diody siatek i MOSFET są portami nieliniowymi rozwiązywanymi
+  Newtonem (`PortSolver.h`: `v = v_oc + Z i(v)`, Jakobian rzadki, Z buforowane między przebudowami sieci,
+  zaakceptowany krok z liniową poprawką prądów → średnio 1 iteracja na próbkę). Pojemności międzyelektrodowe
+  Cgp są elementami sieci, więc efekt Millera wynika z obwodu.
+* **Przedwzmacniacz** (`PreampAC30.h`): sieć A (B+5) — obie triody V1 na wspólnej katodzie, gniazda Hi/Lo, kanał
+  Normal do R37, kanał Top Boost do siatki V2a (6 portów); sieć B (B+4) — V2a, wtórnik katodowy DC, stos TB (3 porty).
+  U1B: `out = V+·(1 + 820/470) − V_normal·820/470`, miękkie nasycenie ±25 V.
+* **Dioda siatki** jak w modelach SPICE Korena (IS = 1 nA szeregowo z RGI), rozwiązana dokładnie przez funkcję W
+  Lamberta. Ważne, bo wtórnik Top Boost **pracuje spoczynkowo w przewodzeniu siatki** (R21 56k pobiera ~3 mA przy
+  niskim Upk): przybliżenie „miękkim kolanem” z rdzenia Dumble dawało 2–3× za duże THD małych sygnałów.
+* **Rev/FX** (`ReverbFx.h`): stopnie op-ampowe jako filtry z wartości elementów + nasycenie; sekcja Level/Tone/suma
+  jako `NodalNetwork` z dwoma źródłami; zbiornik — `dumble::SpringTank`.
+* **Tremolo** (`TremoloOsc.h`): zamiast tablic z ngspice oscylator jest **symulowany w czasie rzeczywistym** jako
+  obwód (MOSFET kwadratowy, 3 człony RC, R90/C66, Q2) przy ~8 kHz z interpolacją — tani, a częstotliwość, amplituda,
+  kształt i rozruch wynikają ze schematu. Sygnał idzie na bias EL84 (§3.7).
+* **Sekcja mocy** (`PowerSectionAC30.h`, `PowerAmpEL84.h`): odwracacz fazy + Tone Cut + Master + upływy + stoppery
+  w jednej sieci (7 portów: anody, katoda, siatki V3, siatki EL84 z przewodzeniem → blocking distortion); 4×EL84
+  z węzłem katody R119 ∥ C74 (półjawnie), ekrany przez 470R, OT 4k : 16 Ω; zasilacz B+1/B+2/B+3 dynamiczny
+  (prostownik tylko ładuje), B+4/B+5 z punktu pracy. Odczyt drabinki ze skanu: B+3 i B+4 odchodzą równolegle od B+2,
+  B+5 od B+4.
+* **Punkt pracy** liczony raz w `prepare()` (iteracja zasilacz ↔ prądy stopni); `reset()` tylko odtwarza
+  zapamiętany stan (bez Newtona DC), więc jest bezpieczny na wątku audio przy przełączaniu oversamplingu.
+* **Plugin:** target `VoxAC30C2` (AU `aufx`/`Ac30`/`Kgon` + Standalone, bez VST3), parametry z §8 + `reverbOn`,
+  `tremOn`, wybór gniazda (`input`), edytor w układzie panelu C2, Standalone z auto-wyborem AXE I/O One
+  (`source/StandaloneApp.cpp`). `scripts/sign_and_notarize.sh` przyjmuje `TARGET`/`PRODUCT`; CI uruchamia
+  `Ac30Tests`, `auval -v aufx Ac30 Kgon` i pluginval.
+
+### 13.1 Wyniki weryfikacji (`Ac30Tests`, Linux x86-64, VM, Release)
+
+| Test | Wynik |
+|---|---|
+| Zasilanie (model) | B+1 345.6, B+2 317.8, B+3 291.9, B+4 267.5, B+5 246.0 V |
+| V1 | anoda TB 167 V, Normal 185 V, katoda 1.47 V |
+| V2a / wtórnik | anoda 175.5 V, katoda 1.24 V; katoda CF 175.0 V (siatka przewodzi) |
+| Odwracacz fazy | anody 233 V, katoda 56.7 V |
+| EL84 | katoda 10.43 V (≈ 10 V **[AIK]**), 47.0 mA anoda + 5.1 mA ekran na lampę |
+| Przedwzmacniacz vs ngspice (3 konfiguracje × 6 przypadków) | H1 ≤ 0.14 dB; THD zgodne (najgorzej 3.75 % vs 2.34 % przy 6 kHz, TB 8/8/2) |
+| Odwracacz fazy + Cut + Master vs ngspice (9 przypadków) | ≤ 0.02 dB |
+| Treble 1→9 przy 4 kHz / Bass 1→9 przy 100 Hz | +10.1 dB / +14.8 dB |
+| Tremolo (oscylator) | 2.07 Hz (Speed 0) … 8.39 Hz (Speed 10); ngspice: 2.0 … 7.6 Hz; ±60 V na Depth |
+| Tremolo (wyjście) | Depth 2 → 2.1 dB modulacji; Depth 10 → pełne wycinanie; footswitch off → 0 dB |
+| Pogłos | ogon 0.2–0.6 s po nucie: Level 8 ≈ 10 000× większy niż Level 0 |
+| Przesunięcie biasu EL84 przy mocnym przesterze | 10.4 → 13.5 V na katodzie |
+| Alokacje w ścieżce audio (ruch wszystkich gałek, zmiana wejścia, przełączanie OS) | 0 |
+| CPU (bufor 64 @ 48 kHz, 1 rdzeń VM, z IR i pogłosem) | 2x ≈ 26 %, 4x ≈ 40 %, 8x ≈ 75 % (Dumble na tej samej VM, 4x: ≈ 24 %) |
+
+### 13.2 Do zrobienia
+
+* kalibracja wartości **[est]** (napięcia B+, poziomy zbiornika i op-ampów) pomiarem egzemplarza C2,
+* walidacja AU i Standalone na macOS 26.4 (auval / pluginval / Logic) — w CI na runnerze macOS; lokalnie
+  zbudowany był tylko Standalone (Linux, test kompilacji),
+* dalsza optymalizacja CPU (np. sieć A przedwzmacniacza ma 6 portów, z czego 3 diody siatek zwykle nie przewodzą),
+* IR kolumny dla 2×12 Greenback (obecnie wbudowany proceduralny IR z SSS).

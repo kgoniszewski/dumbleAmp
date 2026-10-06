@@ -105,6 +105,9 @@ public:
     /** Transformer secondary (tank input) voltage of the last sample: fed back to U20 via R41. */
     float getSecondaryVoltage() const noexcept { return secondary; }
 
+    /** True once the tank's tail has decayed to silence (processing may then be skipped). */
+    bool isQuiet() const noexcept { return tailIsSilent(); }
+
 private:
     bool tailIsSilent() const noexcept
     {
