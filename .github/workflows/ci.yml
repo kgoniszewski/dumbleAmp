@@ -19,7 +19,9 @@ jobs:
       - name: Build (DSP tests + Standalone compile check)
         run: cmake --build build -j4
       - name: Run DSP tests
-        run: ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+        run: |
+          ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+          ./build/tests/Ac30Tests_artefacts/Release/Ac30Tests
 
   macos:
     runs-on: macos-latest # switch to a macos-26 image label when targeting Tahoe explicitly
@@ -30,14 +32,19 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -- -quiet
       - name: Run DSP tests
-        run: ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+        run: |
+          ./build/tests/DumbleTests_artefacts/Release/DumbleTests
+          ./build/tests/Ac30Tests_artefacts/Release/Ac30Tests
       - name: auval
         run: |
           killall -9 AudioComponentRegistrar || true
           auval -v aufx Dsss Kgon
+          auval -v aufx Ac30 Kgon
       - name: pluginval
         run: |
           curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pluginval.zip
           ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
             --validate "$HOME/Library/Audio/Plug-Ins/Components/Dumble SSS.component"
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
+            --validate "$HOME/Library/Audio/Plug-Ins/Components/AC30C2.component"

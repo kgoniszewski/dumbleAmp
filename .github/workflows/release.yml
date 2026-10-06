@@ -58,11 +58,13 @@ jobs:
         env:
           DEVELOPER_ID_APP: ${{ secrets.DEVELOPER_ID_APP }}
           NOTARY_PROFILE: dumble-notary
-        run: ./scripts/sign_and_notarize.sh
+        run: |
+          ./scripts/sign_and_notarize.sh
+          TARGET=VoxAC30C2 PRODUCT=AC30C2 ./scripts/sign_and_notarize.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: DumbleSSS-dmg
+          name: plugins-dmg
           path: dist/*.dmg
 
       - name: Attach to GitHub release

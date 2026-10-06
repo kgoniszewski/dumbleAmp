@@ -16,7 +16,21 @@ Designed for the **IK Multimedia AXE I/O One** (mono instrument input → mono o
 
 Architecture and design notes (Polish): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-Design of a planned VOX AC30C2 emulation on the same core (Polish): [docs/AC30C2_ARCHITECTURE.md](docs/AC30C2_ARCHITECTURE.md)
+## AC30C2
+
+The repository also builds **AC30C2**, a circuit-modelled VOX AC30C2 (Normal + Top Boost, Tone Cut, Master,
+spring reverb, bias tremolo, 4×EL84) from the factory schematics, as a second target (`VoxAC30C2`:
+Standalone + AU `aufx Ac30 Kgon`, no VST3) on the same core. Design and verification notes (Polish):
+[docs/AC30C2_ARCHITECTURE.md](docs/AC30C2_ARCHITECTURE.md).
+
+```sh
+./build-tests/tests/Ac30Tests_artefacts/Release/Ac30Tests   # DSP tests incl. ngspice comparison
+auval -v aufx Ac30 Kgon
+TARGET=VoxAC30C2 PRODUCT=AC30C2 ./scripts/sign_and_notarize.sh
+```
+
+`spice/gen_ac30_refs.py` regenerates `tests/Ac30SpiceReference.h` (needs ngspice). `-DAMP_BUILD_AC30=OFF`
+builds the Dumble SSS only.
 
 ## Build (macOS 26, Xcode 26)
 

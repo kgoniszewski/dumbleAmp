@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sign (Developer ID, hardened runtime), package, notarize and staple Dumble SSS.
+# Sign (Developer ID, hardened runtime), package, notarize and staple one plugin (Dumble SSS by default).
 #
 # Required environment:
 #   DEVELOPER_ID_APP   e.g. "Developer ID Application: Jane Doe (TEAMID1234)"
@@ -9,6 +9,8 @@
 # Optional:
 #   BUILD_DIR          default: build
 #   OUT_DIR            default: dist
+#   TARGET / PRODUCT   CMake target and product name; default DumbleSSS / "Dumble SSS",
+#                      for the AC30: TARGET=VoxAC30C2 PRODUCT=AC30C2
 set -euo pipefail
 
 : "${DEVELOPER_ID_APP:?set DEVELOPER_ID_APP}"
@@ -17,11 +19,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT/build}"
 OUT_DIR="${OUT_DIR:-$ROOT/dist}"
-ART="$BUILD_DIR/DumbleSSS_artefacts/Release"
-APP="$ART/Standalone/Dumble SSS.app"
-AU="$ART/AU/Dumble SSS.component"
+TARGET="${TARGET:-DumbleSSS}"
+PRODUCT="${PRODUCT:-Dumble SSS}"
+ART="$BUILD_DIR/${TARGET}_artefacts/Release"
+APP="$ART/Standalone/$PRODUCT.app"
+AU="$ART/AU/$PRODUCT.component"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
-DMG="$OUT_DIR/DumbleSSS-$VERSION.dmg"
+DMG="$OUT_DIR/$TARGET-$VERSION.dmg"
+STAGE="$OUT_DIR/stage-$TARGET"
 
 [[ -d "$APP" && -d "$AU" ]] || { echo "build Release first: cmake --build $BUILD_DIR --config Release" >&2; exit 1; }
 
@@ -33,14 +38,15 @@ codesign --verify --strict --deep --verbose=2 "$APP"
 codesign --verify --strict --deep --verbose=2 "$AU"
 
 echo "==> package"
-rm -rf "$OUT_DIR" && mkdir -p "$OUT_DIR/stage"
-cp -R "$APP" "$AU" "$OUT_DIR/stage/"
-cat > "$OUT_DIR/stage/INSTALL.txt" <<TXT
-Dumble SSS $VERSION
-- Dumble SSS.app        -> /Applications
-- Dumble SSS.component  -> ~/Library/Audio/Plug-Ins/Components
+rm -rf "$STAGE" "$DMG" && mkdir -p "$STAGE"
+cp -R "$APP" "$AU" "$STAGE/"
+cat > "$STAGE/INSTALL.txt" <<TXT
+$PRODUCT $VERSION
+- $PRODUCT.app        -> /Applications
+- $PRODUCT.component  -> ~/Library/Audio/Plug-Ins/Components
 TXT
-hdiutil create -volname "Dumble SSS $VERSION" -srcfolder "$OUT_DIR/stage" -ov -format UDZO "$DMG"
+hdiutil create -volname "$PRODUCT $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+rm -rf "$STAGE"
 codesign --force --timestamp --sign "$DEVELOPER_ID_APP" "$DMG"
 
 echo "==> notarize"
