@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -26,25 +27,32 @@ struct PortSolver
     Vec v {}, vPrev {}, i {};
     Mat G {};
     double maxStep = 20.0;   // volts per Newton step
-    double tolerance = 1.0e-5;
+    double tolerance = 2.0e-3;  // volts: the accepted step is followed by its first-order current update
     int maxIterations = 6;
+    long long totalIterations = 0, totalSolves = 0; // diagnostics
+    Mat zCache {};
+    unsigned zVersion = ~0u;
 
     /** dev (v, i, G): fills currents and Jacobian (G is cleared before every call). */
     template <typename Net, typename Devices>
     int solve (Net& net, Devices&& dev, bool predict = true) noexcept
     {
         Vec voc {};
-        Mat z {};
 
         for (int p = 0; p < n; ++p)
             net.setCurrent (port[(size_t) p], 0.0);
 
-        for (int p = 0; p < n; ++p)
+        if (net.getVersion() != zVersion)
         {
-            voc[(size_t) p] = net.portVoltage (port[(size_t) p]);
-            for (int q = 0; q < n; ++q)
-                z[(size_t) (p * N + q)] = net.impedance (port[(size_t) p], port[(size_t) q]);
+            zVersion = net.getVersion();
+            for (int p = 0; p < n; ++p)
+                for (int q = 0; q < n; ++q)
+                    zCache[(size_t) (p * N + q)] = net.impedance (port[(size_t) p], port[(size_t) q]);
         }
+        const auto& z = zCache;
+
+        for (int p = 0; p < n; ++p)
+            voc[(size_t) p] = net.portVoltage (port[(size_t) p]);
 
         // linear predictor from the last two samples
         if (predict)
@@ -56,6 +64,8 @@ struct PortSolver
             }
 
         int it = 0;
+        bool converged = false;
+        Vec step {};
         for (; it < maxIterations; ++it)
         {
             G.fill (0.0);
@@ -63,19 +73,7 @@ struct PortSolver
 
             Mat j {};
             Vec f {};
-            for (int r = 0; r < n; ++r)
-            {
-                double zi = 0.0;
-                for (int c = 0; c < n; ++c)
-                {
-                    zi += z[(size_t) (r * N + c)] * i[(size_t) c];
-                    double zg = 0.0;
-                    for (int k = 0; k < n; ++k)
-                        zg += z[(size_t) (r * N + k)] * G[(size_t) (k * N + c)];
-                    j[(size_t) (r * N + c)] = (r == c ? 1.0 : 0.0) - zg;
-                }
-                f[(size_t) r] = v[(size_t) r] - voc[(size_t) r] - zi;
-            }
+            residualAndJacobian (z, voc, f, j);
 
             if (! solveLinear<N> (j, f, n))
                 break;
@@ -83,24 +81,64 @@ struct PortSolver
             double largest = 0.0;
             for (int p = 0; p < n; ++p)
             {
-                const auto d = std::fmax (-maxStep, std::fmin (maxStep, f[(size_t) p]));
+                const auto d = std::max (-maxStep, std::min (maxStep, f[(size_t) p]));
+                step[(size_t) p] = -d;
                 v[(size_t) p] -= d;
-                largest = std::fmax (largest, std::abs (d));
+                largest = std::max (largest, std::abs (d));
             }
 
             if (largest < tolerance)
             {
                 ++it;
+                converged = true;
                 break;
             }
         }
 
-        G.fill (0.0);
-        dev (v, i, G);
+        // device currents at the final point: once converged, the last step is small and the
+        // first-order update of the last evaluation is exact to O(step^2); otherwise evaluate again
+        if (converged)
+        {
+            for (int p = 0; p < n; ++p)
+                for (int c = 0; c < n; ++c)
+                    i[(size_t) p] += G[(size_t) (p * N + c)] * step[(size_t) c];
+        }
+        else
+        {
+            G.fill (0.0);
+            dev (v, i, G);
+        }
+
         for (int p = 0; p < n; ++p)
             net.setCurrent (port[(size_t) p], i[(size_t) p]);
 
+        totalIterations += it;
+        ++totalSolves;
         return it;
+    }
+
+    /** F = v - v_oc - Z i,  J = I - Z G. G is sparse (each device touches 2..3 ports): only its
+        non-zero entries are multiplied in, which keeps an iteration ~O(n * nnz) instead of O(n^3). */
+    void residualAndJacobian (const Mat& z, const Vec& voc, Vec& f, Mat& j) const noexcept
+    {
+        for (int r = 0; r < n; ++r)
+        {
+            double zi = 0.0;
+            for (int c = 0; c < n; ++c)
+                zi += z[(size_t) (r * N + c)] * i[(size_t) c];
+            f[(size_t) r] = v[(size_t) r] - voc[(size_t) r] - zi;
+            j[(size_t) (r * N + r)] = 1.0;
+        }
+
+        for (int k = 0; k < n; ++k)
+            for (int c = 0; c < n; ++c)
+            {
+                const auto gkc = G[(size_t) (k * N + c)];
+                if (std::abs (gkc) <= 0.0)
+                    continue;
+                for (int r = 0; r < n; ++r)
+                    j[(size_t) (r * N + c)] -= z[(size_t) (r * N + k)] * gkc;
+            }
     }
 
     /** Damped DC solve (not real-time): uses the network's DC transfer. Leaves the currents set. */
@@ -128,25 +166,13 @@ struct PortSolver
 
             Mat j {};
             Vec f {};
-            for (int r = 0; r < n; ++r)
-            {
-                double zi = 0.0;
-                for (int c = 0; c < n; ++c)
-                {
-                    zi += z[(size_t) (r * N + c)] * i[(size_t) c];
-                    double zg = 0.0;
-                    for (int k = 0; k < n; ++k)
-                        zg += z[(size_t) (r * N + k)] * G[(size_t) (k * N + c)];
-                    j[(size_t) (r * N + c)] = (r == c ? 1.0 : 0.0) - zg;
-                }
-                f[(size_t) r] = v[(size_t) r] - voc[(size_t) r] - zi;
-            }
+            residualAndJacobian (z, voc, f, j);
 
             if (! solveLinear<N> (j, f, n))
                 break;
 
             for (int p = 0; p < n; ++p)
-                v[(size_t) p] -= 0.5 * std::fmax (-5.0, std::fmin (5.0, f[(size_t) p]));
+                v[(size_t) p] -= 0.5 * std::max (-5.0, std::min (5.0, f[(size_t) p]));
         }
 
         G.fill (0.0);
@@ -157,6 +183,32 @@ struct PortSolver
         vPrev = v;
     }
 };
+
+//==============================================================================
+/**
+    Grid diode of the Koren SPICE models: an ideal diode (IS = 1 nA) in series with RGI, solved
+    exactly. With w = W(x) (Lambert W), I = Vt/R w - IS, x = IS R / Vt exp((V + IS R) / Vt);
+    w + ln w = ln x is solved by Newton in the log domain (no overflow). Returns the current,
+    writes dI/dV. Matters where a grid sits near conduction (the Top Boost cathode follower).
+*/
+inline double gridDiode (double v, double rgi, double& dIdV) noexcept
+{
+    constexpr double is = 1.0e-9, vt = 0.025852;
+    if (v < -0.3)
+    {
+        dIdV = 0.0;
+        return 0.0;
+    }
+
+    const auto lnx = std::log (is * rgi / vt) + (v + is * rgi) / vt;
+    auto w = lnx > 1.0 ? lnx - std::log (lnx) : std::exp (lnx);
+    for (int it = 0; it < 4; ++it)
+        w -= (w + std::log (w) - lnx) / (1.0 + 1.0 / w);
+
+    const auto i = std::fmax (0.0, vt / rgi * w - is);
+    dIdV = 1.0 / (rgi + vt / (i + is));
+    return i;
+}
 
 //==============================================================================
 /** Adds a triode (plate, grid, cathode port indices into the solver vectors; -1 = node not a port,
@@ -177,10 +229,10 @@ struct TriodeDevice
 
         const auto t = table != nullptr ? table->evaluate ((float) (vg - vk), (float) (vp - vk))
                                         : dumble::korenTriode (params, (float) (vg - vk), (float) (vp - vk));
-        float dIg = 0.0f;
-        const auto ig = (double) dumble::gridCurrent ((float) (vg - vk), params.rgi, dIg);
+        double gI = 0.0;
+        const auto ig = gridDiode (vg - vk, (double) params.rgi, gI);
 
-        const double ip = t.ip, gG = t.dIdVgk, gP = t.dIdVpk, gI = dIg;
+        const double ip = t.ip, gG = t.dIdVgk, gP = t.dIdVpk;
 
         if (plateCurrent != nullptr)    *plateCurrent = ip;
         if (gridCurrentOut != nullptr)  *gridCurrentOut = ig;
@@ -220,10 +272,10 @@ template <int N>
 inline double addGridDiode (const std::array<double, (size_t) (N)>& v, std::array<double, (size_t) (N)>& i, std::array<double, (size_t) (N * N)>& G,
                             int pg, double cathodeVolts, double scale, float rgi) noexcept
 {
-    float d = 0.0f;
-    const auto ig = scale * (double) dumble::gridCurrent ((float) (v[(size_t) pg] - cathodeVolts), rgi, d);
+    double d = 0.0;
+    const auto ig = scale * gridDiode (v[(size_t) pg] - cathodeVolts, (double) rgi, d);
     i[(size_t) pg] -= ig;
-    G[(size_t) (pg * N + pg)] -= scale * (double) d;
+    G[(size_t) (pg * N + pg)] -= scale * d;
     return ig;
 }
 

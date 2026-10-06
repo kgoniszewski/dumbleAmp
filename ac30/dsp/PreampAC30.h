@@ -176,6 +176,13 @@ public:
     /** Supply currents drawn at the operating point: { B+4, B+5 } in amps. */
     std::pair<double, double> getSupplyCurrents() const noexcept { return { i4, i5 }; }
 
+    /** Mean Newton iterations per sample of the two networks (diagnostics). */
+    std::pair<double, double> getMeanIterations() const noexcept
+    {
+        return { (double) solverA.totalIterations / (double) std::max (1LL, solverA.totalSolves),
+                 (double) solverB.totalIterations / (double) std::max (1LL, solverB.totalSolves) };
+    }
+
 private:
     // network A nodes
     enum { aInN, aInT, aB5, aGN, aGT, aPN, aPT, aK, aNa, aNb, aNw, aTt, aTw, aCount };
@@ -192,12 +199,9 @@ private:
         eSeriesT = netA.addResistor (aInT, aGT, kHiSeries);
         netA.addCapacitor (aGT, aK, kC13);
 
-        for (auto [grid, plate] : { std::pair { aGN, aPN }, std::pair { aGT, aPT } })
-        {
-            netA.addCapacitor (grid, plate, kCgp);
-            netA.addCapacitor (grid, aK, kCgk);
-            netA.addCapacitor (plate, aK, kCpk);
-        }
+        // grid-plate capacitances (Miller); Cgk (to the bypassed cathode) and Cpk are negligible here
+        netA.addCapacitor (aGN, aPN, kCgp);
+        netA.addCapacitor (aGT, aPT, kCgp);
 
         netA.addResistor (aB5, aPT, kV1PlateTB);              // R14
         netA.addResistor (aB5, aPN, kV1PlateN);               // R12
@@ -234,12 +238,8 @@ private:
         netB.addResistor (bB4, bPA, kV2Plate);                // R32
         netB.addResistor (bKA, g, kV2Cathode);                // R26
         netB.addCapacitor (bKA, g, kV2CathodeCap);            // C18
-        netB.addCapacitor (bG2, bPA, kCgp);                   // V2a
-        netB.addCapacitor (bG2, bKA, kCgk);
-        netB.addCapacitor (bPA, bKA, kCpk);
-        netB.addCapacitor (bPA, bKB, kCgk);                   // V2b (grid = V2a plate)
-        netB.addCapacitor (bPA, bB4, kCgp);
-        netB.addCapacitor (bB4, bKB, kCpk);
+        // V2's inter-electrode capacitances only add poles in the MHz range here (V2a's Miller
+        // capacitance is in network A, where it loads the Top Boost volume)
         netB.addResistor (bKB, g, kV2bLoad);                  // R21
         netB.addCapacitor (bKB, g, kC84);                     // C84
 

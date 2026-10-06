@@ -14,7 +14,7 @@ namespace ac30::circuit
 
     //==========================================================================
     // 12AX7 inter-electrode capacitances (RCA data): the Miller effect comes out of the networks.
-    inline constexpr double kCgp = 1.7e-12, kCgk = 1.6e-12, kCpk = 0.46e-12;
+    inline constexpr double kCgp = 1.7e-12, kCgk = 1.6e-12;
 
     //==========================================================================
     // Input jacks (input board): 10k (R1/R2, R5/R6) + ferrite, then 2 x 56k per grid on the main board
@@ -83,8 +83,8 @@ namespace ac30::circuit
     // R113 / R114 / R116 1M; tremolo depth VR8 B500K drives the R115/R118 junction
     inline constexpr double kMasterSeries = 10.0e3, kVR10 = 500.0e3, kR118 = 220.0e3, kPowerGridLeak = 1.0e6;
     inline constexpr double kVR8 = 500.0e3;
-    // EL84 grids: 3k3 stoppers (R61, R81, R101, R108), two grids per phase; input capacitance [est]
-    inline constexpr double kPowerStopper = 3.3e3, kPowerGridCap = 25.0e-12;
+    // EL84 grids: 3k3 stoppers (R61, R81, R101, R108), two grids per phase
+    inline constexpr double kPowerStopper = 3.3e3;
 
     //==========================================================================
     // Tremolo oscillator: Q4 LND150N3 phase-shift oscillator from B+2 via R93 33k / C60 10u

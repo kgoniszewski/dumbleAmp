@@ -50,6 +50,9 @@ public:
     }
 
     void setNumNodes (int n) noexcept { numNodes = n; }
+
+    /** Incremented by every build(): lets a solver cache its port impedances. */
+    unsigned getVersion() const noexcept { return version; }
     int getNumPorts() const noexcept  { return numPorts; }
 
     void setValue (int element, double value) noexcept
@@ -77,6 +80,7 @@ public:
             return;
 
         dirty = false;
+        ++version;
         Matrix a {};
         stampAll (a, false);
         Matrix inv {};
@@ -394,6 +398,7 @@ private:
     std::array<double, (size_t) (MaxPorts)> u {}, uUsed {};
     int numElements = 0, numReactive = 0, numNodes = 0, numPorts = 0;
     double T = 1.0 / 48000.0;
+    unsigned version = 0;
     bool dirty = true;
 };
 

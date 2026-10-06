@@ -192,6 +192,12 @@ public:
     PhaseInverterDC getPhaseInverterDC() const noexcept { return piDC; }
     const TremoloOsc& getTremolo() const noexcept { return tremolo; }
 
+    /** Differential EL84 grid drive of the last sample (volts, for tests). */
+    double getGridDrive() const noexcept { return solver.v[5] - solver.v[6]; }
+    double getMeanIterations() const noexcept { return (double) solver.totalIterations / (double) std::max (1LL, solver.totalSolves); }
+    /** Common-mode EL84 grid voltage of the last sample (tremolo, for tests). */
+    double getGridCommonMode() const noexcept { return 0.5 * (solver.v[5] + solver.v[6]); }
+
 private:
     enum { nB3, nIn, nLfo, nGA, nGB, nPA, nPB, nK, nT, nOA, nOB, nCut, nOpP, nOpM, nQ, nEP, nEM, nCount };
 
@@ -210,12 +216,8 @@ private:
         net.addResistor (nB3, nPA, kPiPlate);                 // R67
         net.addResistor (nB3, nPB, kPiPlate);                 // R70
         net.addCapacitor (nPA, nPB, kC42);                    // C42
-        for (auto [grid, plate] : { std::pair { nGA, nPA }, std::pair { nGB, nPB } })
-        {
-            net.addCapacitor (grid, plate, kCgp);
-            net.addCapacitor (grid, nK, kCgk);
-            net.addCapacitor (plate, nK, kCpk);
-        }
+        net.addCapacitor (nGA, nPA, kCgp);                    // Miller; Cgk / Cpk are negligible next to C42
+        net.addCapacitor (nGB, nPB, kCgp);
 
         net.addCapacitor (nPA, nOA, kPiCoupling);             // C50
         net.addCapacitor (nPB, nOB, kPiCoupling);             // C51
@@ -235,8 +237,7 @@ private:
 
         net.addResistor (nOpP, nEP, kPowerStopper * 0.5);     // R101 || R108
         net.addResistor (nOpM, nEM, kPowerStopper * 0.5);     // R61 || R81
-        net.addCapacitor (nEP, g, kPowerGridCap);
-        net.addCapacitor (nEM, g, kPowerGridCap);
+        // the EL84 input capacitance behind 1.65k is a pole at ~4 MHz: left out
 
         sB3 = net.addVoltageSource (nB3);
         sIn = net.addVoltageSource (nIn);
